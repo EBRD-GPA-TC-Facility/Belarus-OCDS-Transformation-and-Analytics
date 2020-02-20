@@ -1,0 +1,16 @@
+.page-chart {
+  min-height: 700px;
+  padding-top: 90px;
+  padding-bottom: 30px;
+  height: fit-content;
+  background: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);
+
+  .page-chart__wrapper {
+    height: 500px;
+
+    .highcharts-series-hover path {
+      stroke: rgba(255, 138, 101, 1);
+      stroke-width: 2px;
+    }
+  }
+}

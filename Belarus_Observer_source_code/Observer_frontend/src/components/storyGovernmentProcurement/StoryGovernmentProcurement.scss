@@ -1,0 +1,33 @@
+.StoryGovernmentProcurement {
+  color: #FFFFFF;
+  padding-top: 80px;
+  padding-bottom: 30px;
+  height: fit-content;
+  background: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);
+
+  .ReactTable .rt-tbody .rt-tr-group {
+    border-bottom: 1px solid #364270;
+  }
+
+  .ReactTable .rt-tbody .rt-td {
+    color: #FFFFFF !important;
+  }
+
+  .ReactTable .rt-thead.-header {
+    border-bottom: unset;
+  }
+
+  .banner {
+    width: 100%;
+    height: 350px;
+    background-image: url("../article/imgsMock/banner.e5640824.jpg");
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    margin-bottom: 30px;
+  }
+
+  p {
+    padding: 0 0 15px;
+  }
+}

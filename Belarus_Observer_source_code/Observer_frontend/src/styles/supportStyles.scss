@@ -1,0 +1,89 @@
+$distance: 50;
+$sizes: 10;
+
+@for $i from 1 through $sizes {
+  .margin-#{($distance/$sizes)*$i} {
+    margin: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .margin-top-#{($distance/$sizes)*$i} {
+    margin-top: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .margin-bottom-#{($distance/$sizes)*$i} {
+    margin-bottom: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .margin-left-#{($distance/$sizes)*$i} {
+    margin-left: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .margin-right-#{($distance/$sizes)*$i} {
+    margin-right: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .padding-#{($distance/$sizes)*$i} {
+    padding: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .padding-top-#{($distance/$sizes)*$i} {
+    padding-top: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .padding-bottom-#{($distance/$sizes)*$i} {
+    padding-bottom: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .padding-left-#{($distance/$sizes)*$i} {
+    padding-left: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@for $i from 1 through $sizes {
+  .padding-right-#{($distance/$sizes)*$i} {
+    padding-right: #{($distance/$sizes)*$i}px !important
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .Card {
+    //margin-top: 15px;
+  }
+  .mobile-top-margin {
+    margin-top: 15px;
+  }
+  .highcharts-tooltip {
+    margin-top: 70px;
+  }
+  .chart-mobile-header {
+    h5 {
+      font-size: 1em;
+    }
+    h4 {
+      font-size: 1em;
+    }
+  }
+  .margin-top-30 {
+    margin-top: 15px !important;
+  }
+  .CopyrightFooter {
+    margin-top: 30px !important;
+  }
+}
+

@@ -1,0 +1,33 @@
+//@import url('https://fonts.googleapis.com/css?family=Roboto:400,500,700&subset=cyrillic');
+@import url('https://fonts.googleapis.com/css?family=Montserrat:400,500,600,700');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif !important;
+  background-color: #F8F8F8;
+  color: #212121;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+p {
+  margin: unset;
+}
+
+.highcharts-axis-labels {
+  z-index: -1;
+}
+
+//.highcharts-tooltip span {
+//  width:140px;
+//  min-width: 100%;
+//  max-width: 200px;
+//  max-height: fit-content;
+//  overflow: hidden;
+//  white-space:normal !important; // add this line...
+//}

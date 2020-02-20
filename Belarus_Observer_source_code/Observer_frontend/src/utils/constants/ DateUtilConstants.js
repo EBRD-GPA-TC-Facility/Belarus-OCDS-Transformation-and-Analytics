@@ -1,0 +1,8 @@
+export const MM_DD_YYYY = 'MM/DD/YYYY'
+export const YYYY_MM_DD = 'YYYY-MM-DD'
+export const YYYY_MMM = 'YYYY-MMM'
+export const MMM_DD = 'MMM DD'
+export const MMM = 'MMM'
+export const FiscalYearPrefix = 'FY'
+export const CalendarYearPrefix = 'CY'
+export const YYYY_MM_DD_HH_MM_SS = 'YYYY-MM-DDThh:mm:ssZ'

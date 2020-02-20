@@ -1,0 +1,62 @@
+.card-chart-wrapper-home {
+  position: relative;
+  //margin-top: -20px;
+  .content-wrapper-home {
+    display: flex;
+    position: absolute;
+    top: 25px;
+    left: 30px;
+    z-index: 10;
+  }
+
+  .graph-wrapper-home {
+    z-index: 0;
+    padding-top: 60px;
+  }
+
+  .value-info-home {
+    font-size: 1.5rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    margin: unset;
+  }
+
+  .chart-info-home {
+    font-size: 0.90rem;
+    color: #3D5056;
+    font-weight: 400;
+    line-height: 18px;
+    padding-bottom: 30px;
+  }
+
+  .c-preset-orange {
+    color: #FFA228;
+  }
+
+  .c-preset-green {
+    color: #1CCFBF;
+  }
+
+  .c-preset-pink {
+    color: #FB72C1
+  }
+
+  .c-preset-blue {
+    color: #769EFF
+  }
+
+  .c-preset-blue-mono {
+    color: #1FBCFF
+  }
+
+  .Card {
+    height: 100%
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .home-cards {
+    margin-top: 15px;
+  }
+}

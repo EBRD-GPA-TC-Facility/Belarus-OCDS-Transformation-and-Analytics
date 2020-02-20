@@ -1,0 +1,55 @@
+$separator-color-light: 'red';
+$theme-color-1: 'blue';
+
+.ReactTable {
+  border: initial;
+  .rt-th,
+  .rt-td {
+    white-space: unset;
+    text-overflow: unset;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    font-size: 14px;
+    color: #3D5056;
+    padding: 15px 10px;
+    &:first-child {padding-left: 30px;}
+    &:last-child {padding-right: 30px;}
+  }
+  .rt-thead {
+    &.-header {
+      box-shadow: initial;
+      border-bottom: 1px solid #E9EDF2;
+    }
+    .rt-th {
+      align-self: center;
+    }
+    .rt-th,
+    .rt-td {
+      color: #85979D;
+      font-style: normal;
+      line-height: normal;
+      font-size: .95rem;
+      text-transform: uppercase;
+      text-align: left;
+      white-space: unset;
+      text-overflow: unset;
+      vertical-align: middle;
+      padding: 15px 10px;
+      box-shadow: initial;
+      border: initial;
+      &:first-child {padding-left: 30px;}
+      &:last-child {padding-right: 30px;}
+    }
+  }
+  .rt-tbody .rt-tr-group {
+    border-bottom: 1px solid #E9EDF2;
+  }
+  .list-item-heading {
+    margin-bottom: 0;
+  }
+  .rt-tbody .rt-td {
+    word-wrap: break-word;
+    border-right: initial;
+  }
+}

@@ -1,0 +1,18 @@
+.CopyrightFooter {
+  color: #85979D;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  .footer-info {
+    //display: flex;
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+    font-size: 14px;
+    flex-grow: 3;
+  }
+
+  .lang-selector {
+  }
+}

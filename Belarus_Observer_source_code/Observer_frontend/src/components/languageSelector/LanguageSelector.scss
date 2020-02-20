@@ -1,0 +1,19 @@
+.languages-container {
+  display: flex;
+  align-items: center;
+
+  .lang-option {
+    font-weight: 500;
+    font-style: normal;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    color: #8F98A3;
+    padding-right: 3px;
+    padding-left: 3px;
+
+    &.active {
+      color: white;
+    }
+  }
+
+}

@@ -1,0 +1,33 @@
+.c-preset-blue-mono {
+  color: #1FBCFF
+}
+
+.content-wrapper {
+  display: flex;
+  padding-top: 25px;
+  margin: 0 15px;
+}
+
+.graph-wrapper {
+  .highcharts-container {
+    width: 100% !important;
+  }
+}
+
+.value-info {
+  font-size: 1.5em;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  margin: unset;
+}
+
+.chart-info {
+  //overflow-x:hidden;
+  font-size: 0.85rem;
+  color: #3D5056;
+  font-weight: 400;
+  line-height: 18px;
+  padding-bottom: 30px;
+  word-wrap: break-word;
+}

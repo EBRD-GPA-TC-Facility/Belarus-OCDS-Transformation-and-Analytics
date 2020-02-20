@@ -1,0 +1,58 @@
+{
+  "name": "belarus-web-app",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@highcharts/map-collection": "^1.1.2",
+    "bootstrap": "^4.1.3",
+    "chart.js": "^2.7.3",
+    "chartjs-plugin-style": "^0.3.1",
+    "classnames": "^2.2.6",
+    "highcharts": "^6.2.0",
+    "history": "^4.7.2",
+    "lodash": "^4.17.11",
+    "moment": "latest",
+    "node-sass": "^4.10.0",
+    "numeral": "^2.0.6",
+    "prop-types": "^15.6.2",
+    "react": "^16.6.0",
+    "react-async": "^3.8.3",
+    "react-chartjs-2": "^2.7.4",
+    "react-dom": "^16.6.0",
+    "react-dropdown": "^1.6.3",
+    "react-highcharts": "^16.0.2",
+    "react-intl": "^2.7.2",
+    "react-intl-redux": "^2.1.0",
+    "react-jsx-highcharts": "^3.4.0",
+    "react-redux": "^5.0.7",
+    "react-router-dom": "^4.3.1",
+    "react-router-hash-link": "^1.2.1",
+    "react-router-redux": "^4.0.8",
+    "react-scripts": "2.0.5",
+    "react-siema": "^1.0.1",
+    "react-slick": "^0.23.2",
+    "react-table": "^6.8.6",
+    "redux": "^4.0.1",
+    "redux-api-middleware": "^2.3.0",
+    "redux-thunk": "^2.3.0",
+    "shortid": "^2.2.14",
+    "slick-carousel": "^1.8.1"
+  },
+  "scripts": {
+    "start": "PORT=3001 react-scripts start",
+    "build": "react-scripts build"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ],
+  "devDependencies": {
+    "redux-devtools-extension": "^2.13.5",
+    "redux-logger": "^3.0.6"
+  }
+}

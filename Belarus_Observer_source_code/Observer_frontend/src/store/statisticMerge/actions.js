@@ -1,0 +1,58 @@
+import * as TYPE from "./constants"
+import { get }   from "../../utils/api/apiUtils"
+import * as API  from "../../utils/api/apiConstants"
+
+
+export const getAverages = (reqData) => {
+  const TYPES = [
+    TYPE.GET_AVERAGES_REQUEST,
+    TYPE.GET_AVERAGES_SUCCESS,
+    TYPE.GET_AVERAGES_FAILURE,
+  ]
+  return get(API.GET_AVERAGES, TYPES, reqData)
+}
+
+export const getBuyersSuppliers = (reqData) => {
+  const TYPES = [
+    TYPE.GET_BUYERS_SUPPLIERS_REQUEST,
+    TYPE.GET_BUYERS_SUPPLIERS_SUCCESS,
+    TYPE.GET_BUYERS_SUPPLIERS_FAILURE,
+  ]
+  return get(API.GET_BUYERS_SUPPLIERS, TYPES, reqData)
+}
+
+export const getClassAvgPerTopByContAmountRegTopCountAmountOKRB = (reqData) => {
+  const TYPES = [
+    TYPE.GET_CLASS_AVG_PER_TOP_BY_CONT_AMOUNT_REG_TOP_COUNT_AMOUNT_OKRB_REQUEST,
+    TYPE.GET_CLASS_AVG_PER_TOP_BY_CONT_AMOUNT_REG_TOP_COUNT_AMOUNT_OKRB_SUCCESS,
+    TYPE.GET_CLASS_AVG_PER_TOP_BY_CONT_AMOUNT_REG_TOP_COUNT_AMOUNT_OKRB_FAILURE,
+  ]
+  return get(API.GET_CLASS_AVG_PER_TOP_BY_CONT_AMOUNT_REG_TOP_COUNT_AMOUNT_OKRB, TYPES, reqData)
+}
+
+export const getContComCountAmountDatesCompeCountAmountSuppSABAShare = (reqData) => {
+  const TYPES = [
+    TYPE.GET_CONT_COM_COUNT_AMOUNT_DATES_COM_CASSABA_SHARE_REQUEST,
+    TYPE.GET_CONT_COM_COUNT_AMOUNT_DATES_COM_CASSABA_SHARE_SUCCESS,
+    TYPE.GET_CONT_COM_COUNT_AMOUNT_DATES_COM_CASSABA_SHARE_FAILURE,
+  ]
+  return get(API.GET_CONT_COM_COUNT_AMOUNT_DATES_COM_CASSABA_SHARE, TYPES, reqData)
+}
+
+export const getKPIsProcCContAContCPerSBSCount = (reqData) => {
+  const TYPES = [
+    TYPE.GET_KPI_PROC_CCA_CONT_C_PER_SBS_COUNT_REQUEST,
+    TYPE.GET_KPI_PROC_CCA_CONT_C_PER_SBS_COUNT_SUCCESS,
+    TYPE.GET_KPI_PROC_CCA_CONT_C_PER_SBS_COUNT_FAILURE,
+  ]
+  return get(API.GET_KPI_PROC_CCA_CONT_C_PER_SBS_COUNT, TYPES, reqData)
+}
+
+export const getKPIsShareCompleteLotsLotsForSmallScaleBusinessGSWCount = (reqData) => {
+  const TYPES = [
+    TYPE.GET_KPI_SHARE_COMP_LLFS_SCALE_BUS_GSWC_REQUEST,
+    TYPE.GET_KPI_SHARE_COMP_LLFS_SCALE_BUS_GSWC_SUCCESS,
+    TYPE.GET_KPI_SHARE_COMP_LLFS_SCALE_BUS_GSWC_FAILURE,
+  ]
+  return get(API.GET_KPI_SHARE_COMP_LLFS_SCALE_BUS_GSWC, TYPES, reqData)
+}

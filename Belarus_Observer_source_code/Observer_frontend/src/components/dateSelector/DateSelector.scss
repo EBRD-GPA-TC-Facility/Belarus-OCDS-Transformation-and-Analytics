@@ -1,0 +1,32 @@
+.date-range-selector {
+  display: flex;
+  flex-direction: row;
+  align-content: flex-end;
+  justify-content: flex-end;
+  margin-top: 15px;
+
+  button {
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+    background: #85979D;
+    margin-left: 15px;
+    outline: none;
+
+    &:first-child {
+      margin-left: 0;
+    }
+
+    &:hover {
+      background-color: #85979a80;
+    }
+  }
+
+  button.active {
+    background: #1FBCFF;
+
+    &:hover {
+      background: #1FBCFF80;
+    }
+  }
+}

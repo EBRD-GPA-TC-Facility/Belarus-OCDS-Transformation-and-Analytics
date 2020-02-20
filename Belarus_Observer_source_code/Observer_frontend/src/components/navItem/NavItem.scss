@@ -1,0 +1,52 @@
+.nav-item {
+  font-weight: 500;
+  margin-right: 1.875rem;
+  font-style: normal;
+  font-size: 0.8125rem;
+
+  a {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    color: #8F98A3;
+    text-decoration: none;
+
+    &:hover {
+      color: #e4fff5;
+      text-decoration: none;
+
+      svg > path {
+        fill: #e4fff5;
+      }
+    }
+
+    span {
+
+    }
+
+    svg {
+      margin-right: 0.625rem;
+
+      path {
+        fill: #8F98A3;
+      }
+    }
+  }
+}
+
+a.active {
+
+  color: #FFFFFF;
+
+  svg > path {
+    fill: #FFFFFF;
+  }
+
+  &:hover {
+    color: #e4fff5;
+
+    svg > path {
+      fill: #e4fff5;
+    }
+  }
+}

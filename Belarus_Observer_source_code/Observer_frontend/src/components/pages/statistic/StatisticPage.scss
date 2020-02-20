@@ -1,0 +1,138 @@
+.Statistic {
+  padding-top: 120px;
+
+  .range-selector {
+    display: flex;
+    flex-grow: 3;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .slider-mini-kpis-wrapper {
+    .slick-current,
+    .slick-slide {
+      height: auto;
+
+      div {
+        height: 100%;
+      }
+    }
+
+    .slick-track {
+      display: flex;
+      align-items: stretch;
+    }
+  }
+
+  .mini-kpi-row {
+    height: calc(50% - 15px);
+  }
+
+  .slider-chart {
+    height: 100%;
+    padding-left: 45px;
+    padding-right: 45px;
+  }
+
+  .mini-kpi-value {
+    align-self: center;
+    height: 60px;
+    width: 60px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 40px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    flex-shrink: 0;
+
+    &.color-perano {
+      background-color: #64B5F680;
+      color: #3C4B56;
+    }
+
+    &.color-madang {
+      background-color: #81C78480;
+      color: #3C563F;
+    }
+  }
+
+  h4.table-title {
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    font-size: 1.25rem;
+    color: #212121;
+    margin-left: 30px;
+    margin-bottom: unset;
+    padding-top: 30px;
+  }
+
+  .slider-wrapper {
+    &.slider-kpis-wrapper,
+    &.slider-chart-wrapper {
+      &:hover {
+        button.slick-next {
+          right: 15px;
+        }
+
+        button.slick-prev {
+          left: 15px;
+        }
+      }
+    }
+
+    button.slick-prev,
+    button.slick-next {
+      z-index: 5 !important;
+      display: none !important;
+    }
+
+    &:hover {
+      button.slick-prev,
+      button.slick-next {
+        display: block !important;
+        height: calc(100%);
+        width: 40px;
+        background-color: #72838620;
+        z-index: 100000;
+      }
+
+      button.slick-next {
+        right: -30px;
+
+        &::before {
+          content: url("../../../common/img/rightArrow.svg");
+        }
+
+        &:hover {
+          background-color: #72838630;
+        }
+      }
+
+      button.slick-prev {
+        left: -30px;
+
+        &::before {
+          content: url("../../../common/img/leftArrow.svg");
+        }
+
+        &:hover {
+          background-color: #72838630;
+        }
+      }
+    }
+  }
+
+  .table-header {
+    div {
+      font-size: 14px;
+    }
+  }
+}
+
+.grad-card-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}

@@ -1,0 +1,133 @@
+$navbar-height: 80px;
+$navbar-mobile-height: 90px;
+$navbar-background: rgba(255, 255, 255, .2);
+$navbar-background-scrolled: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);
+
+.BarNav {
+  height: $navbar-height;
+  padding: 1.5rem 0 1.5rem;
+  //animation: anim-scroll-up .2s ease-out;
+  background: #172C3B;
+
+  &.nav-on-top {
+  }
+
+  //box-shadow: 0 1px 15px rgba(0, 0, 0, 0.04), 0 1px 6px rgba(0, 240, 255, 0.04);
+  .header-wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .ice-trade-link {
+    margin-right: 1.875rem;
+    font-size: 0.8125rem;
+    color: #8F98A3;
+    text-decoration: none;
+    font-style: normal;
+    font-weight: 500;
+
+    a {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      color: #8F98A3;
+      text-decoration: none;
+
+      &:hover {
+        color: #e4fff5;
+        text-decoration: none;
+
+        circle {
+          stroke: #e4fff5;
+        }
+        svg > path,
+        rect {
+          fill: #e4fff5;
+        }
+      }
+      svg {
+        margin-right: 0.625rem;
+        circle {
+          stroke: #8F98A3;
+        }
+        path,
+        rect {
+          fill: #8F98A3;
+        }
+      }
+    }
+  }
+
+  .lang-selector {
+    font-size: 0.8125rem;
+    display: flex;
+    flex-grow: 3;
+    flex-direction: column;
+    align-items: flex-end;
+    color: white;
+
+    .Dropdown-text .Dropdown-placeholder {
+      color: #FFFFFF;
+    }
+
+    .Dropdown-text .Dropdown-arrow {
+      border-color: #FFFFFF transparent transparent;
+    }
+
+    .is-open .Dropdown-text .Dropdown-arrow {
+      border-color: transparent transparent #FFFFFF;
+    }
+
+    .Dropdown-text .Dropdown-placeholder {
+      color: #FFFFFF;
+      font-weight: 500;
+    }
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .BarNav {
+    height: $navbar-mobile-height;
+
+    .ice-trade-link {
+      margin-right: 5px;
+    }
+
+    .nav-item {
+      a {
+        width: 110px;
+      }
+      margin-right: 5px;
+    }
+
+    .lang-selector {
+      flex-grow: 0;
+      //margin-top: 15px;
+    }
+
+    .header-wrapper {
+      align-items: center;
+      flex-direction: row;
+    }
+  }
+}
+
+//@keyframes anim-scroll-down {
+//  0% {
+//    background-color: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);;
+//  }
+//  100% {
+//    background-color: #172C3B;
+//  }
+//}
+//
+//@keyframes anim-scroll-up {
+//  0% {
+//    background-color: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);;
+//  }
+//  100% {
+//    background-color: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);;
+//  }
+//}

@@ -1,0 +1,96 @@
+.slider {
+  display: flex;
+  flex-direction: column;
+  .slider-wrapper {
+    display: flex;
+    flex-direction: row;
+    margin-top: 30px;
+    width: 100%;
+    height: fit-content;
+    overflow: hidden;
+    border-radius: 4px !important;
+    .prev-button {
+      margin-left: 15px;
+    }
+    .next-button {
+      margin-left: unset;
+      margin-right: 15px;
+    }
+  }
+}
+
+.slider-content {
+  flex-grow: 3;
+  padding: unset;
+  margin: 0 15px;
+}
+
+.slider-item {
+  position: relative;
+  transition: all .2s linear;
+}
+
+.hide {
+  display: none;
+  @extend .slider-item
+}
+
+.buttons-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.prev-button {
+  align-self: center;
+  background-image: url(http://static.birgun.net/static/images/slider-arrow-left.svg);
+  background-size: 100%;
+  background-color: rgba(0, 0, 0, 0.2);
+  height: 30px;
+  width: 30px;
+  border-radius: 4px;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s linear;
+}
+
+.next-button {
+  background-image: url(http://static.birgun.net/static/images/slider-arrow-right.svg);
+  @extend .prev-button;
+}
+
+button:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 5 !important;
+}
+
+ul.indicators {
+  margin: unset;
+  padding: unset;
+  width: 100%;
+  text-align: center;
+  li {
+    display: inline-block;
+    margin-right: 5px;
+    width: 12px;
+    height: 12px;
+    font-size: 16px;
+    line-height: 30px;
+    border-radius: 100%;
+    text-align: center;
+    background-color: #3f3f3f;
+    color: #333;
+    text-indent: -9999px;
+    cursor: pointer;
+    transition: all 0.2s linear;
+    &:last-child {
+      margin-right: 0;
+    }
+    &.active-indicator {
+      background: #1ccfbf !important;
+      color: #fff !important;
+    }
+  }
+}

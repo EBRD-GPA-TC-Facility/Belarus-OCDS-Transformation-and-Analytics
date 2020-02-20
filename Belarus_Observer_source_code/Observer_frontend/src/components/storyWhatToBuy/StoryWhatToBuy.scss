@@ -1,0 +1,30 @@
+.StoryWhatToBuy {
+  padding-top: 120px;
+  padding-bottom: 30px;
+  height: fit-content;
+  background: linear-gradient(113.28deg, #172C3B 0%, #364270 100%);
+  .story-what-to-by-header {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    color: #FFFFFF;
+    padding-bottom: 12px;
+    .info-title {
+      color: #e57373;
+    }
+    .info-value {
+      .story-info-value-competitive {
+        color: #e57373;
+      }
+      .story-info-value-uncompetitive {
+        color: #e57373;
+      }
+    }
+
+  }
+
+  .story-desc {
+    margin-top: 30px;
+    color: #FFF;
+  }
+}

@@ -1,0 +1,15 @@
+.card-info {
+  font-size: 0.95rem;
+  .info {
+    color: #3d5056;
+    .title {
+      color: #039BE5;
+    }
+    a {
+      color: #3d5056;
+      &:hover {
+        color: #039BE5;
+      }
+    }
+  }
+}
