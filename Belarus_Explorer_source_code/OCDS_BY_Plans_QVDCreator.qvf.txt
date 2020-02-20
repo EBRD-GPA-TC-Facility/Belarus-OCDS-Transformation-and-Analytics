@@ -1,0 +1,1115 @@
+SET ThousandSep=' ';
+SET DecimalSep=',';
+SET MoneyThousandSep=' ';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='# ##0,00 ₴;-# ##0,00 ₴';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD.MM.YYYY';
+SET TimestampFormat='DD.MM.YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='ru-UA';
+//SET CreateSearchIndexOnReload=1;
+SET MonthNames='янв.;февр.;мар.;апр.;мая;июн.;июл.;авг.;сент.;окт.;нояб.;дек.';
+SET LongMonthNames='январь;февраль;март;апрель;май;июнь;июль;август;сентябрь;октябрь;ноябрь;декабрь';
+SET DayNames='пн;вт;ср;чт;пт;сб;вс';
+SET LongDayNames='понедельник;вторник;среда;четверг;пятница;суббота;воскресенье';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+SET DIC_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Plans/02_QVD_DB/01_Dictionary/';
+SET TRN_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Plans/02_QVD_DB/02_Transaction/';
+
+SET FILES_PATH = 'lib://OCDSBYData/01_DataBase_Plans/01_DataFiles/';
+SET LOCAL_FILES_PATH = 'lib://OCDSBYData/01_DataBase_Plans/03_LocalFiles/';
+
+SET vBaseURL = 'http://127.0.0.1:8110/belarus/compiled-plannings'; // Live 
+
+Set vOffsetNo = '?offset=';
+Set vOffsetBase = '1970-01-01T03:00:00+03:00';
+
+Set vPageNo = '&page=';
+Set vPageNoBase = 0;
+//Set vPageNoBase = 1118;
+
+SET vPageSize = '&size=1000';
+// Batching step (the larger is more frequent QVD files are overwritten) vPageSize x vStep 
+SET vStep = 10;
+
+// Max date from previous page
+Set vPrevMaxReleaseDate = 0;
+
+// Catalogs
+SET vEstablishments = 'http://127.0.0.1:8110/belarus/catalogs/establishments';
+SET vOKRB = 'http://127.0.0.1:8110/belarus/catalogs/okrb';
+SET vSME = 'http://127.0.0.1:8110/belarus/catalogs/sme';
+SET vCurrencyRates = 'http://127.0.0.1:8110/belarus/catalogs/currency-rates';
+SET vCountries = 'http://127.0.0.1:8110/belarus/catalogs/countries';
+
+LIB CONNECT TO 'OCDSBYPlans';
+
+/* 0. Store dictionaries */
+
+// The section can be moved to the end of the download queue without additional settings and changes.
+
+Multilang_Dictionaries:
+NoConcatenate
+LOAD
+    F1 as Index,
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En,
+    F5 as attributeOf
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=2038448621')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_Dictionaries into [$(DIC_QVD_PATH)/Multilang_Dictionaries.qvd] (qvd);
+Drop table Multilang_Dictionaries;
+
+Multilang_FieldNames:
+NoConcatenate
+LOAD
+    F1 as Index,
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=135113094')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_FieldNames into [$(DIC_QVD_PATH)/Multilang_FieldNames.qvd] (qvd);
+Drop Table Multilang_FieldNames;
+
+Multilang_Labels:
+NoConcatenate
+LOAD
+    F1 as "Index",
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=739052023')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_Labels into [$(DIC_QVD_PATH)/Multilang_Labels.qvd] (qvd);
+Drop Table Multilang_Labels;
+
+FieldsTranslateTable:
+NoConcatenate
+LOAD
+    F1,
+	F2
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/d/*/gviz/tq?tqx=out:html&tq&gid=1162842330')
+Where F1 <> 'IN' and Len(F1)>0;
+;
+
+Store FieldsTranslateTable into [$(DIC_QVD_PATH)/FieldsTranslateTable.qvd] (qvd);
+Drop Table FieldsTranslateTable;
+
+// Описания листов и объектов
+TranslationsHelp:
+NoConcatenate
+LOAD
+    F1 as "Index",
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=184360484')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store TranslationsHelp into [$(DIC_QVD_PATH)/TranslationsHelp.qvd] (qvd);
+Drop Table TranslationsHelp;
+
+/* 1. Procedures */
+
+// Сonvert boolean values
+BoolMap:
+Mapping
+Load * Inline [
+BoolValue, BoolValueNum
+true,	   1
+false,	   0
+];
+
+SET vBoolConvert = "ApplyMap('BoolMap', Lower($1), $2)";
+
+// Date and Time Conversion
+SET vDateConvert = "ConvertToLocalTime($1)";
+SET vFloorDateConvert = "Date(Floor(ConvertToLocalTime($1)))";
+
+/* 2. Store dictionaries */
+
+// Currency Rates
+RestConnectorMasterTable:
+SQL SELECT 
+	"date",
+	"rate",
+	"code",
+	"nameRu",
+	"nameBe",
+	"nameEn"
+FROM JSON (wrap on) "root"
+WITH CONNECTION (
+URL "$(vCurrencyRates)"
+);
+
+CurrencyRates:
+LOAD Distinct	
+	$(vFloorDateConvert([date])) AS CurrencyRate_date,
+	[rate] AS CurrencyRate,
+	[code] AS CurrencyRate_code,
+	[nameRu] AS CurrencyRate_nameRu,
+	[nameBe] AS CurrencyRate_nameBe,
+	[nameEn] AS CurrencyRate_nameEn
+RESIDENT RestConnectorMasterTable;
+
+DROP TABLE RestConnectorMasterTable;
+Store CurrencyRates into [$(DIC_QVD_PATH)CurrencyRates.qvd] (qvd);
+Drop Table CurrencyRates;
+
+// SME
+RestConnectorMasterTable:
+SQL SELECT 
+	"code",
+	"title",
+	"internationalClassificator"
+FROM JSON (wrap on) "root"
+WITH CONNECTION (
+URL "$(vSME)"
+);
+
+SME:
+LOAD Distinct	
+	[code] AS SME_code,
+	[title] AS SME,
+	$(vBoolConvert([internationalClassificator], 0)) AS SME_internationalClassificator
+RESIDENT RestConnectorMasterTable;
+
+DROP TABLE RestConnectorMasterTable;
+Store SME into [$(DIC_QVD_PATH)SME.qvd] (qvd);
+Drop Table SME;
+
+// OKRB
+RestConnectorMasterTable:
+SQL SELECT 
+	"code",
+	"name"
+FROM JSON (wrap on) "root"
+WITH CONNECTION (
+URL "$(vOKRB)"
+);
+
+OKRB:
+LOAD Distinct	
+     code as OKRB_code, 
+     name&' - '&code as OKRB,
+     if(Len(code)=8, Left(code, 7),
+     	if(Len(code)=7, Left(code, 5),
+     		if(Len(code)=5, Left(code, 4),
+     			if(Len(code)=4, code, Left(code, 8)
+     			)
+     		)
+     	)
+     ) as OKRB_ParentCode
+RESIDENT RestConnectorMasterTable;
+
+DROP TABLE RestConnectorMasterTable;
+Store OKRB into [$(DIC_QVD_PATH)OKRB.qvd] (qvd);
+Drop Table OKRB;
+
+
+// Establishments
+RestConnectorMasterTable:
+SQL SELECT 
+	"id",
+	"title",
+	"parentId"
+FROM JSON (wrap on) "root"
+WITH CONNECTION (
+URL "$(vEstablishments)"
+);
+
+Establishments:
+LOAD Distinct	
+	[id] AS establishment_id,
+	[title] AS establishment,
+	[parentId] AS establishment_parentId
+RESIDENT RestConnectorMasterTable;
+
+DROP TABLE RestConnectorMasterTable;
+Store Establishments into [$(DIC_QVD_PATH)Establishments.qvd] (qvd);
+Drop Table Establishments;
+
+// Countries
+RestConnectorMasterTable:
+SQL SELECT 
+	"numericCountryCode",
+	"twoLetterCode",
+	"threeLetterCode",
+	"countryName",
+	"countryShortName"
+FROM JSON (wrap on) "root"
+WITH CONNECTION (
+URL "$(vCountries)"
+);
+
+Countries:
+LOAD	[numericCountryCode] AS [numericCountryCode],
+	[twoLetterCode] AS [twoLetterCode],
+	[threeLetterCode] AS [threeLetterCode],
+	[countryName] AS [countryName],
+	[countryShortName] AS [countryShortName]
+RESIDENT RestConnectorMasterTable;
+
+DROP TABLE RestConnectorMasterTable;
+Store Countries into [$(DIC_QVD_PATH)Countries.qvd] (qvd);
+Drop Table Countries;
+
+/* 3.PlanID */
+
+// Loading a portion of plans identifiers since the last timestamp
+
+IF NOT IsNull(FileSize('$(DIC_QVD_PATH)OffsetTablePlans.txt')) THEN
+  OffsetTable_:
+  LOAD 
+  		OffsetDateTime
+  FROM
+  [$(DIC_QVD_PATH)OffsetTablePlans.txt]
+  (txt, utf8, embedded labels, delimiter is ',', msq);
+  // Last timestamp
+  OffsetTable:
+  NoConcatenate
+  LOAD 
+  		LastValue(OffsetDateTime) as OffsetDateTime
+  Resident OffsetTable_
+  Order By OffsetDateTime desc;
+  
+  Drop Table OffsetTable_;
+
+  Let vCurrentReloadSessionOffset = Peek('OffsetDateTime', -1, 'OffsetTable');
+
+  DROP Table OffsetTable;
+
+  ELSE
+
+  Let vCurrentReloadSessionOffset = vOffsetBase;
+ENDIF
+
+LET vURL = vBaseURL&vOffsetNo&vCurrentReloadSessionOffset&vPageNo&vPageNoBase&vPageSize;
+
+PlanHeadersAll:
+LOAD * Inline [
+PlanId, PlanModificateDateTime, OffsetDateTime
+];
+
+DO //Beginning of the cycle for loading identifiers
+
+  TRACE;
+  TRACE $(vURL);
+
+  RestConnectorMasterTable:
+  SQL SELECT 
+      "totalPages",
+      "totalElements",
+      "last",
+      "first",
+      "__KEY_root",
+      (SELECT 
+          "ocid",
+          "date",
+          "__FK_content"
+      FROM "content" FK "__FK_content"),
+      (SELECT 
+          "pageSize",
+          "pageNumber",
+          "offset",
+          "paged",
+          "unpaged",
+          "__KEY_pageable",
+          "__FK_pageable",
+          (SELECT 
+              "sorted",
+              "unsorted",
+              "__FK_sort"
+          FROM "sort" FK "__FK_sort")
+      FROM "pageable" PK "__KEY_pageable" FK "__FK_pageable")
+  FROM JSON (wrap on) "root" PK "__KEY_root"
+  WITH CONNECTION(URL "$(vURL)");
+
+  [PlanHeadersTmp]:
+  LOAD	[ocid] AS [ocid],
+      [date] AS [date],
+      [__FK_content] AS [__KEY_root]
+  RESIDENT RestConnectorMasterTable
+  WHERE NOT IsNull([__FK_content]);
+
+  [pageable]:
+  LOAD
+      [pageNumber] AS [pageNumber],
+      [__KEY_pageable] AS [__KEY_pageable],
+      [__FK_pageable] AS [__KEY_root]
+  RESIDENT RestConnectorMasterTable
+  WHERE NOT IsNull([__FK_pageable]);
+
+  [root]:
+  LOAD	[totalPages] AS [totalPages],
+      [totalElements] AS [totalElements],
+      $(vBoolConvert([last], 0)) AS [last],
+      [first] AS [first]
+  RESIDENT RestConnectorMasterTable
+  WHERE NOT IsNull([__KEY_root]);
+
+  DROP TABLE RestConnectorMasterTable;
+
+  Let vTotalElements = Peek('totalElements', -1, 'root');
+
+  IF $(vTotalElements) = 0 THEN
+
+    Trace 'No new releases';
+    
+    Exit Script;
+
+  ENDIF
+
+  Let vIsLastPage = Peek('last', -1, 'root');
+  LET vRowsQtyPlanHeaders = NoOfRows('PlanHeadersTmp');
+  
+  IF $(vRowsQtyPlanHeaders) > 0 THEN
+  
+      MinReleaseDate:
+      Load
+            Min(date) as MinReleaseDate
+      Resident PlanHeadersTmp;  
+
+      Let vMinReleaseDate = Peek('MinReleaseDate', -1, 'MinReleaseDate');
+      Drop Table MinReleaseDate;
+
+      MaxReleaseDate:
+      Load
+            LastValue(date) as MaxReleaseDate
+      Resident PlanHeadersTmp
+      Order By date;
+
+      Let vMaxReleaseDate = Peek('MaxReleaseDate', -1, 'MaxReleaseDate');
+      Drop Table MaxReleaseDate;
+
+      IF vMinReleaseDate = vPrevMaxReleaseDate THEN
+
+        Let vNextPageNumber = num(Peek('pageNumber', -1, 'pageable'))+1;
+
+        ELSE
+            SET vNextPageNumber = 0;
+
+            LET vCurrentReloadSessionOffset = vMaxReleaseDate;
+
+      ENDIF
+
+      LET vPrevMaxReleaseDate = vMaxReleaseDate;
+
+
+      Concatenate (PlanHeadersAll)
+      LOAD
+          [ocid] as PlanId,
+          $(vDateConvert(date)) as PlanModificateDateTime,
+          date as OffsetDateTime,
+          '$(vURL)' as PHUri
+      Resident PlanHeadersTmp;	
+      
+      ELSE
+      		Let vNextPageNumber = num(Peek('pageNumber', -1, 'pageable'))+1;
+  ENDIF
+  
+  DROP Tables PlanHeadersTmp, root, pageable;
+  
+  LET vURL = vBaseURL&vOffsetNo&vCurrentReloadSessionOffset&vPageNo&vNextPageNumber&vPageSize;
+  
+// /////////////////////////////////////////////////
+//!!!! For debug
+//	IF Match(Second(Now()),0,1,2,3,4,5) AND Match(Minute(Now()),30, 59) THEN
+//		STORE PlanHeadersAll into [$(FILES_PATH)PlanHeadersAll.qvd] (qvd); // For Debug 
+//	ENDIF
+// /////////////////////////////////////////////////
+
+LOOP WHILE $(vIsLastPage) <> 1;
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// !!!Headers can be downloaded from QVD for debugging.!!!
+//EXIT SCRIPT;
+// PlanHeaders:
+// //First 10
+// LOAD 
+//     PlanId,
+//     PlanModificateDateTime,
+//     OffsetDateTime,
+//     PHUri
+// FROM [lib://OCDSBYData/01_DataFiles\PlanHeadersAll.qvd] (qvd);
+//EXIT SCRIPT;
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//Exclusion of entries with identical plans identifiers
+PlanHeaders:
+NoConcatenate
+LOAD
+	PlanId,
+	LastValue(PlanModificateDateTime) as PlanModificateDateTime,
+	LastValue(OffsetDateTime) as OffsetDateTime,
+    LastValue(PHUri) as PHUri
+Resident PlanHeadersAll	
+Group by PlanId
+Order By PlanModificateDateTime;
+
+DROP Table PlanHeadersAll;
+
+STORE PlanHeaders into [$(FILES_PATH)PlanHeaders.qvd] (qvd); // For Debug
+
+LET vAllRowsQty = NoOfRows('PlanHeaders');
+
+//If there were no new identifiers, exit
+IF $(vAllRowsQty) = 0 THEN
+
+  TRACE WARNING! No Plans changed;
+
+  EXIT SCRIPT;
+ENDIF
+
+
+// Batching for saving in QVD
+PlanHeadersBase:
+LOAD PlanId as PlanIdBase, 
+     PlanModificateDateTime as PlanModificateDateTimeBase,
+     OffsetDateTime as OffsetDateTimeBase,
+     PHUri as PHUriBase,
+     if(IsNull(Previous(PHUri)), 1, if(Previous(PHUri)=PHUri, Peek('BatchNo', -1, 'PlanHeadersBase'),  RangeSum(Peek('BatchNo', -1, 'PlanHeadersBase'), 1) )) as BatchNo
+Resident  PlanHeaders
+Order by PlanModificateDateTime;   
+
+DROP Table PlanHeaders;
+
+BatchTable:
+LOAD 	 
+	 Only(BatchNo) as Batch
+Resident PlanHeadersBase
+Group By BatchNo
+Order By BatchNo;
+
+LET vLastBatch = Peek('Batch', -1, 'BatchTable');
+LET vFirstBatch = Peek('Batch', 0, 'BatchTable');
+
+//
+FOR vBatchNo =  $(vFirstBatch) to  $(vLastBatch) step vStep 
+//
+
+LET vBatchNoStep = $(vBatchNo) + vStep - 1;
+
+TRACE BatchNo $(vBatchNo) - $(vBatchNoStep);
+
+PlanHeaders:
+NoConcatenate
+LOAD PlanIdBase as PlanId, 
+     OffsetDateTimeBase as OffsetDateTime,
+     PHUriBase as PHUri
+Resident  PlanHeadersBase
+Where BatchNo >= $(vBatchNo) AND BatchNo <= $(vBatchNoStep)
+Order By BatchNo;
+
+LET vRowsQty = NoOfRows('PlanHeaders'); 
+
+/* 4.Plan MasterTable Full */
+
+FOR Each vPlanId in FieldValueList('PlanId') 
+
+LET vURL = vBaseURL&'/'&vPlanId; 
+
+RestConnectorMasterTable:
+SQL SELECT 
+	"date",
+	"ocid",
+	"__KEY_root",
+	(SELECT 
+		"@Value",
+		"__FK_tag"
+	FROM "tag" FK "__FK_tag" ArrayValueAlias "@Value"),
+	(SELECT 
+		"id" AS "id_u2",
+		"planNumber",
+		"budgetYear",
+		"dateCreated",
+        "date" AS "date_u1",
+		"__KEY_planning",
+		"__FK_planning",
+		(SELECT 
+			"id" AS "id_u1",
+			"quantity",
+			"description" AS "description_u0",
+			"planItemNumber",
+			"__KEY_items",
+			"__FK_items",
+			(SELECT 
+				"id",
+				"description",
+				"scheme",
+				"__FK_classification"
+			FROM "classification" FK "__FK_classification"),
+			(SELECT 
+				"id" AS "id_u0",
+				"name",
+				"scheme" AS "scheme_u0",
+				"__FK_unit"
+			FROM "unit" FK "__FK_unit"),
+			(SELECT 
+				"amount",
+				"currency",
+				"__FK_value"
+			FROM "value" FK "__FK_value")
+		FROM "items" PK "__KEY_items" FK "__FK_items")
+	FROM "planning" PK "__KEY_planning" FK "__FK_planning"),
+	(SELECT 
+		"id" AS "id_u5",
+		"name" AS "name_u1",
+		"__KEY_parties",
+		"__FK_parties",
+		(SELECT 
+			"@Value" AS "@Value_u0",
+			"__FK_roles"
+		FROM "roles" FK "__FK_roles" ArrayValueAlias "@Value_u0"),
+		(SELECT 
+			"department",
+			"branch",
+			"branchDivision",
+			"export",
+			"organisationType",
+			"organisationForm",
+			"organisationStatus",
+			"budgetType",
+			"isFilial",
+            "scale",
+			"__FK_details"
+		FROM "details" FK "__FK_details"),
+		(SELECT 
+			"id" AS "id_u3",
+			"legalName",
+			"scheme" AS "scheme_u1",
+			"__FK_identifier"
+		FROM "identifier" FK "__FK_identifier"),
+		(SELECT 
+			"id" AS "id_u4",
+			"scheme" AS "scheme_u2",
+            "legalName" AS "legalName_u1",
+			"__FK_additionalIdentifiers"
+		FROM "additionalIdentifiers" FK "__FK_additionalIdentifiers"),
+		(SELECT 
+			"countryName",
+			"locality",
+			"postalCode",
+			"region",
+			"streetAddress",
+			"__FK_address"
+		FROM "address" FK "__FK_address"),
+		(SELECT 
+			"email",
+			"faxNumber",
+			"name" AS "name_u0",
+			"telephone",
+			"url",
+			"__FK_contactPoint"
+		FROM "contactPoint" FK "__FK_contactPoint")
+	FROM "parties" PK "__KEY_parties" FK "__FK_parties"),
+	(SELECT 
+		"id" AS "id_u6",
+		"description" AS "description_u1",
+		"operation",
+		"condition",
+		"kind",
+		"needJsonPathResults",
+		"set",
+		"jsonPathResults",
+		"__KEY_failed_rules",
+		"__FK_failed_rules",
+		(SELECT 
+			"path",
+			"values",
+			"__FK_operands"
+		FROM "operands" FK "__FK_operands")
+	FROM "failed_rules" PK "__KEY_failed_rules" FK "__FK_failed_rules")
+FROM JSON (wrap on) "root" PK "__KEY_root"
+WITH CONNECTION(URL "$(vURL)");
+
+NEXT vPlanId;
+
+/* 5. Store to QVD Full */
+
+// FOR Debug!!!
+Store RestConnectorMasterTable into  [$(FILES_PATH)RestConnectorMasterTable_PLANS.qvd] (qvd);
+
+//====Plan_releases====
+plan_releases:
+LOAD	$(vDateConvert([date])) AS plan_release_date,
+	[ocid] AS IDPlanReleaseOCIDOrig,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+LEFT JOIN (plan_releases)
+LOAD
+	[__KEY_root],
+	CONCAT([@Value],';') AS plan_releases_tag_list
+GROUP BY [__KEY_root];
+LOAD	[@Value] AS [@Value],
+	[__FK_tag] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_tag]);
+
+LET vReleasesRowsQty = NoOfRows('plan_releases'); 
+
+IF vReleasesRowsQty <> vRowsQty THEN
+	TRACE Data Load ERROR!!! Incorrect releases!!!;
+    EXIT SCRIPT;
+ENDIF
+
+IF NOT Isnull( FileSize('$(TRN_QVD_PATH)PlanReleases.qvd')) THEN
+    Concatenate (plan_releases)
+    Load 
+        IDPlanReleaseOCIDOrig,
+        plan_release_date,
+        plan_releases_tag_list
+    FROM [$(TRN_QVD_PATH)PlanReleases.qvd] (qvd)
+    Where NOT Exists (IDPlanReleaseOCIDOrig);
+ENDIF
+
+PlanReleases:
+LOAD 
+        IDPlanReleaseOCIDOrig,
+        plan_release_date,
+        plan_releases_tag_list,
+    AutoNumber(IDPlanReleaseOCIDOrig, 'IDPlanReleaseOCID') As IDPlanReleaseOCIDKey
+Resident plan_releases;
+
+Drop Table plan_releases;
+    
+Store PlanReleases into [$(TRN_QVD_PATH)PlanReleases.qvd] (qvd);
+Drop table PlanReleases; 
+
+//====Plannings====
+plannings:
+LOAD	[id_u2] AS planning_id,
+	[planNumber] AS planning_planNumber,
+	[budgetYear] AS planning_budgetYear,
+	$(vDateConvert([dateCreated])) AS planning_dateTimeCreated,
+    $(vFloorDateConvert([dateCreated])) AS planning_dateCreated,
+    $(vDateConvert([date_u1])) AS planning_dateTime,
+    $(vFloorDateConvert([date_u1])) AS planning_date,
+//	[__KEY_planning] AS [__KEY_planning],
+	[__FK_planning] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_planning]);
+
+LEFT JOIN (plannings)
+LOAD	[ocid] AS IDPlanReleaseOCIDOrig,
+		[ocid] AS IDPlanReleaseOCID,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+IF NOT Isnull( FileSize('$(TRN_QVD_PATH)Plannings.qvd')) THEN
+    Concatenate (plannings)
+    Load 
+        planning_id,
+        planning_planNumber,
+        planning_budgetYear,
+        planning_dateTimeCreated,
+        planning_dateCreated,
+        planning_dateTime,
+        planning_date,
+        IDPlanReleaseOCIDOrig
+    FROM [$(TRN_QVD_PATH)Plannings.qvd] (qvd)
+    Where NOT Exists (IDPlanReleaseOCID,IDPlanReleaseOCIDOrig);
+ENDIF
+
+Plannings:
+LOAD 
+        planning_id,
+        planning_planNumber,
+        planning_budgetYear,
+        planning_dateTimeCreated,
+        planning_dateCreated,
+        planning_dateTime,
+        planning_date,
+        IDPlanReleaseOCIDOrig,
+    AutoNumber(IDPlanReleaseOCIDOrig&'|'&planning_id, 'IDPlanning') as IDPlanningKey,
+    AutoNumber(IDPlanReleaseOCIDOrig, 'IDPlanReleaseOCID') As IDPlanReleaseOCIDKey
+Resident plannings;
+
+Drop Table plannings;
+    
+Store Plannings into [$(TRN_QVD_PATH)Plannings.qvd] (qvd);
+Drop table Plannings; 
+
+//====Planning_items====
+planning_items:
+LOAD	[id_u1] AS planning_items_id,
+	[quantity] AS planning_items_quantity,
+	[description_u0] AS planning_items_description,
+	[planItemNumber] AS planning_items_planItemNumber,
+	[__KEY_items] AS [__KEY_items],
+	[__FK_items] AS [__KEY_planning]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_items]);
+
+LEFT JOIN (planning_items)
+LOAD	[id_u2] AS planning_id,
+	[__KEY_planning] AS [__KEY_planning],
+    [__FK_planning] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_planning]);
+
+LEFT JOIN (planning_items)
+LOAD	[ocid] AS IDPlanReleaseOCIDOrig,
+		[ocid] AS IDPlanReleaseOCID,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+LEFT JOIN (planning_items)
+LOAD	[id] AS planning_items_classification_id,
+	[description] AS planning_items_classification_description,
+	[scheme] AS planning_items_classification_scheme,
+	[__FK_classification] AS [__KEY_items]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_classification]);
+
+LEFT JOIN (planning_items)
+LOAD	[id_u0] AS planning_items_unit_id,
+	[name] AS planning_items_unit_name,
+	[scheme_u0] AS planning_items_unit_scheme,
+	[__FK_unit] AS [__KEY_items]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_unit]);
+
+LEFT JOIN (planning_items)
+LOAD	[amount] AS planning_items_value_amount,
+	[currency] AS planning_items_value_currency,
+	[__FK_value] AS [__KEY_items]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_value]);
+
+IF NOT Isnull( FileSize('$(TRN_QVD_PATH)Planning_items.qvd')) THEN
+    Concatenate (planning_items)
+    Load 
+          planning_items_id,
+          planning_items_quantity,
+          planning_items_description,
+          planning_items_planItemNumber,
+          planning_items_classification_id,
+          planning_items_classification_description,
+          planning_items_classification_scheme,
+          planning_items_unit_id,
+          planning_items_unit_name,
+          planning_items_unit_scheme,
+          planning_items_value_amount,
+          planning_items_value_currency,
+          planning_id,
+          IDPlanReleaseOCIDOrig
+    FROM [$(TRN_QVD_PATH)Planning_items.qvd] (qvd)
+    Where NOT Exists (IDPlanReleaseOCID,IDPlanReleaseOCIDOrig);
+ENDIF
+
+Planning_items:
+LOAD 
+          planning_items_id,
+          planning_items_quantity,
+          planning_items_description,
+          planning_items_planItemNumber,
+          planning_items_classification_id,
+          planning_items_classification_description,
+          planning_items_classification_scheme,
+          planning_items_unit_id,
+          planning_items_unit_name,
+          planning_items_unit_scheme,
+          planning_items_value_amount,
+          planning_items_value_currency,
+          planning_id,
+          IDPlanReleaseOCIDOrig,
+    AutoNumber(IDPlanReleaseOCIDOrig&'|'&planning_id, 'IDPlanning') as IDPlanningKey
+Resident planning_items;
+
+Drop Table planning_items;
+    
+Store Planning_items into [$(TRN_QVD_PATH)Planning_items.qvd] (qvd);
+Drop table Planning_items; 
+
+//====Failed_rules====
+failed_rules:
+LOAD	[id_u6] AS failed_rules_id,
+	[description_u1] AS failed_rules_description,
+	[operation] AS failed_rules_operation,
+	[condition] AS failed_rules_condition,
+	[kind] AS failed_rules_kind,
+	[needJsonPathResults] AS failed_rules_needJsonPathResults,
+	[set] AS failed_rules_set,
+	[jsonPathResults] AS failed_rules_jsonPathResults,
+	[__KEY_failed_rules] AS [__KEY_failed_rules],
+	[__FK_failed_rules] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_failed_rules]);
+
+LEFT JOIN (failed_rules)
+LOAD	[ocid] AS IDPlanReleaseOCIDOrig,
+		[ocid] AS IDPlanReleaseOCID,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+LEFT JOIN (failed_rules)
+LOAD	[path] AS failed_rules_operands_path,
+	[values] AS failed_rules_operands_values,
+	[__FK_operands] AS [__KEY_failed_rules]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_operands]);
+
+IF NOT Isnull( FileSize('$(TRN_QVD_PATH)Plan_failed_rules.qvd')) THEN
+    Concatenate (failed_rules)
+    Load 
+          failed_rules_id,
+          failed_rules_description,
+          failed_rules_operation,
+          failed_rules_condition,
+          failed_rules_kind,
+          failed_rules_needJsonPathResults,
+          failed_rules_set,
+          failed_rules_jsonPathResults,
+          failed_rules_operands_path,
+          failed_rules_operands_values,
+          IDPlanReleaseOCIDOrig
+    FROM [$(TRN_QVD_PATH)Plan_failed_rules.qvd] (qvd)
+    Where NOT Exists (IDPlanReleaseOCID,IDPlanReleaseOCIDOrig);
+ENDIF
+
+Plan_failed_rules:
+LOAD 
+          failed_rules_id,
+          failed_rules_description,
+          failed_rules_operation,
+          failed_rules_condition,
+          failed_rules_kind,
+          failed_rules_needJsonPathResults,
+          failed_rules_set,
+          failed_rules_jsonPathResults,
+          failed_rules_operands_path,
+          failed_rules_operands_values,
+          IDPlanReleaseOCIDOrig,
+    AutoNumber(IDPlanReleaseOCIDOrig, 'IDPlanReleaseOCID') As IDPlanReleaseOCIDKey
+Resident failed_rules;
+
+Drop Table failed_rules;
+    
+Store Plan_failed_rules into [$(TRN_QVD_PATH)Plan_failed_rules.qvd] (qvd);
+Drop table Plan_failed_rules; 
+
+//====Parties====
+parties:
+LOAD DISTINCT	[id_u5] AS IDParty,
+	[name_u1] AS parties_name,
+	[__KEY_parties] AS [__KEY_parties],
+	[__FK_parties] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_parties]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[ocid] AS IDPlanReleaseOCIDOrig,
+		[ocid] AS IDPlanReleaseOCID,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[@Value_u0] AS parties_role,
+	[__FK_roles] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_roles]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[department] AS parties_department,
+	[branch] AS parties_branch,
+	[branchDivision] AS parties_branchDivision,
+	[export] AS parties_export,
+	[organisationType] AS parties_organisationType,
+	[organisationForm] AS parties_organisationForm,
+	[organisationStatus] AS parties_organisationStatus,
+	[budgetType] AS parties_budgetType,
+	$(vBoolConvert([isFilial], 0)) AS parties_isFilial,
+    [scale] AS parties_scale,
+	[__FK_details] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_details]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[id_u3] AS parties_id,
+	[legalName] AS parties_legalName,
+	[scheme_u1] AS parties_scheme,
+	[__FK_identifier] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_identifier]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[id_u4] AS parties_additionalIdentifier_id,
+	[scheme_u2] AS parties_additionalIdentifier_scheme,
+    [legalName_u1] AS parties_additionalIdentifier_legalName,
+	[__FK_additionalIdentifiers] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_additionalIdentifiers]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[countryName] AS parties_countryName,
+	[locality] AS parties_locality,
+	[postalCode] AS parties_postalCode,
+	[region] AS parties_region,
+	[streetAddress] AS parties_streetAddress,
+	[__FK_address] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_address]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	[email] AS parties_contactPoint_email,
+	[faxNumber] AS parties_contactPoint_faxNumber,
+	[name_u0] AS parties_contactPoint_name,
+	[telephone] AS parties_contactPoint_telephone,
+	[url] AS parties_contactPoint_url,
+	[__FK_contactPoint] AS [__KEY_parties]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_contactPoint]);
+
+LEFT JOIN (parties)
+LOAD DISTINCT	TimeStamp(Alt($(vDateConvert([date])), Now())) AS parties_latestRelease_date,
+	[__KEY_root] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+IF NOT Isnull( FileSize('$(TRN_QVD_PATH)Plan_parties.qvd')) THEN
+    Concatenate (parties)
+    Load 
+          IDParty,
+          parties_name,
+          parties_role,
+          parties_department,
+          parties_branch,
+          parties_branchDivision,
+          parties_export,
+          parties_organisationType,
+          parties_organisationForm,
+          parties_organisationStatus,
+          parties_budgetType,
+          parties_isFilial,
+          parties_scale,
+          parties_id,
+          parties_legalName,
+          parties_scheme,
+          parties_additionalIdentifier_id,
+          parties_additionalIdentifier_scheme,
+          parties_additionalIdentifier_legalName,
+          parties_countryName,
+          parties_locality,
+          parties_postalCode,
+          parties_region,
+          parties_streetAddress,
+          parties_contactPoint_email,
+          parties_contactPoint_faxNumber,
+          parties_contactPoint_name,
+          parties_contactPoint_telephone,
+          parties_contactPoint_url,
+          parties_latestRelease_date,
+          IDPlanReleaseOCIDOrig
+    FROM [$(TRN_QVD_PATH)Plan_parties.qvd] (qvd)
+    Where NOT Exists (IDPlanReleaseOCID,IDPlanReleaseOCIDOrig);
+ENDIF
+
+Plan_parties:
+LOAD 
+          IDParty,
+          parties_name,
+          parties_role,
+          parties_department,
+          parties_branch,
+          parties_branchDivision,
+          parties_export,
+          parties_organisationType,
+          parties_organisationForm,
+          parties_organisationStatus,
+          parties_budgetType,
+          parties_isFilial,
+          parties_scale,
+          parties_id,
+          parties_legalName,
+          parties_scheme,
+          parties_additionalIdentifier_id,
+          parties_additionalIdentifier_scheme,
+          parties_additionalIdentifier_legalName,
+          parties_countryName,
+          parties_locality,
+          parties_postalCode,
+          parties_region,
+          parties_streetAddress,
+          parties_contactPoint_email,
+          parties_contactPoint_faxNumber,
+          parties_contactPoint_name,
+          parties_contactPoint_telephone,
+          parties_contactPoint_url,
+          parties_latestRelease_date,
+          IDPlanReleaseOCIDOrig,
+    AutoNumber(IDPlanReleaseOCIDOrig, 'IDPlanReleaseOCID') As IDPlanReleaseOCIDKey
+Resident parties;
+
+Drop Table parties;
+    
+Store Plan_parties into [$(TRN_QVD_PATH)Plan_parties.qvd] (qvd);
+Drop table Plan_parties; 
+
+DROP FIELD [__KEY_root];
+DROP TABLE RestConnectorMasterTable;
+
+/* 6. Offset Clean */
+
+// If updating data without errors - save a new Offset,
+// otherwise, at the next reboot, update data from the old Offset
+// 2 timestamps, as modification dates for different releases may be repeated
+
+OffsetTable_:
+LOAD 
+	 LastValue(OffsetDateTime) as OffsetDateTime
+Resident PlanHeaders;	 
+
+IF NOT IsNull(FileSize('$(DIC_QVD_PATH)OffsetTablePlans.txt')) THEN
+    Concatenate (OffsetTable_)
+    LOAD 
+         OffsetDateTime
+    FROM
+    [$(DIC_QVD_PATH)OffsetTablePlans.txt]
+    (txt, utf8, embedded labels, delimiter is ',', msq);
+ENDIF
+
+OffsetTable:
+First 2
+NoConcatenate
+Load
+	 Only(OffsetDateTime) as OffsetDateTime
+Resident   OffsetTable_
+Group By OffsetDateTime
+Order By OffsetDateTime desc;
+
+Drop Table OffsetTable_;
+
+STORE OffsetTable INTO  [$(DIC_QVD_PATH)OffsetTablePlans.txt] (txt); 
+DROP Table OffsetTable;
+
+DROP Table PlanHeaders;
+
+//
+NEXT vBatchNo;
+//
+
+DROP Table BatchTable;
+
+Exit Script;

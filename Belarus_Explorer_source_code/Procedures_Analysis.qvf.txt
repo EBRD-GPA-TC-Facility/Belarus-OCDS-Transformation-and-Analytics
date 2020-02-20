@@ -1,0 +1,2499 @@
+SET ThousandSep=' ';
+SET DecimalSep=',';
+SET MoneyThousandSep=' ';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='# ##0,00 Br;-# ##0,00 Br';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD.MM.YYYY';
+SET TimestampFormat='DD.MM.YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='en-GB';
+//SET CreateSearchIndexOnReload=1; //Change!!!
+SET MonthNames='Jan;Feb;Mar;Apr;May;Jun;Jul;Aug;Sep;Oct;Nov;Dec';
+Set DayNames='Mon;Tue;Wed;Thu;Fri;Sat;Sun';
+SET LongMonthNames='January;February;March;April;May;June;July;August;September;October;November;December';
+SET LongDayNames='Monday;Tuesday;Wednesday;Thursday;Friday;Saturday;Sunday';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+SET DISABLE_INSIGHTS = 1;
+
+SET HidePrefix = '_';
+
+SET vLocalVal = 'BYN';
+SET vBYN_symbol = 'Br';
+
+SET DIC_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Tenders/02_QVD_DB/01_Dictionary/';
+SET TRN_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Tenders/02_QVD_DB/02_Transaction/';
+
+//SET FILES_PATH = 'lib://OCDSBYData/01_DataBase_Tenders/01_DataFiles/';
+SET LOCAL_FILES_PATH = 'lib://OCDSBYData/01_DataBase_Tenders/03_LocalFiles/';
+
+
+Set vPrefix = '_';
+SET Lan1Name = 'Ru';
+SET Lan2Name = 'En';
+
+
+SET vMaxDimensions = 4;
+SET vMaxMeasures = 4;
+
+SET vYESText = 'YES (ДА)';
+SET vNOText = 'NO (НЕТ)';
+SET vDAText = 'Да';
+SET vNETText = 'Нет';
+
+LET vBeginDate = Makedate(1970,1,1);
+LET vFirstDate = Makedate(2013,1,1);
+
+SET vTenderUrl = 'http://www.icetrade.by/tenders/all/view/';
+SET vContractUrl = 'http://www.icetrade.by/tenders8000/view/';
+
+SET vUndefinedText = 'Unregistered data';
+
+/* 0. Procedures */
+
+// Numbers rounding
+SET vRound2 = Round(Floor($1, 0.001), 0.01);
+
+// Trimming data on the main table and building a hierarchy
+SUB RHierarchy(BaseTable, HTable, id, parent_id, name, name_pref)
+// BaseTable - cropping table
+// HTable - base table on which the hierarchy is built
+// id, parent_id, name - hierarchy fields
+// name_pref - new fields suffix
+	// Trim dictionary
+	BelongTo:
+	NoConcatenate
+	HierarchyBelongsTo($(id), $(parent_id), $(name), AncestorID, AncestorName)
+	LOAD
+		$(id), 
+		$(parent_id), 
+		$(name)
+	Resident $(HTable);
+	
+	BelongTo2:
+//	Left Keep ($(BaseTable)) 
+	LOAD
+		$(id) as [$(name_pref)$(id)],
+		AncestorID
+	Resident BelongTo;
+	
+	DROP Table BelongTo;
+	
+	BelongTo:
+	Right Keep ($(HTable)) 
+	LOAD	
+		AncestorID as $(id)
+	Resident BelongTo2;
+	
+	Drop Tables BelongTo2, BelongTo;
+		
+	$(HTable)Hierarchy:
+	Hierarchy([$(name_pref)$(id)], [$(name_pref)$(parent_id)], [$(name_pref)$(name)], [$(name_pref)$(name)_parent], [$(name_pref)$(name)], Path$(name_pref)$(name), '\', $(name_pref)$(name)_Depth)
+	LOAD
+		 $(id) as [$(name_pref)$(id)],
+		 $(parent_id) as [$(name_pref)$(parent_id)],
+		 $(name) as [$(name_pref)$(name)]
+	Resident $(HTable); 
+	
+ENDSUB
+
+
+//Procedures for translating application fields
+
+SUB translationsJoin (tableName, keyField)
+
+  FieldNames_tmp:
+  NoConcatenate
+  Load 
+      "Index",
+      [$(Lan1Name)],
+      [$(Lan2Name)]
+  Resident FieldNamesTable
+  where Index like '$(tableName)';
+  
+  TRACE $(tableName);
+
+  Let vLan1FieldName = Peek('$(Lan1Name)', -1, 'FieldNames_tmp');
+  Let vLan2FieldName = Peek('$(Lan2Name)', -1, 'FieldNames_tmp');
+  Let vLan3FieldName = Peek('$(Lan3Name)', -1, 'FieldNames_tmp');
+
+  left join("$(tableName)")
+  Load Index as "$(keyField)",
+       [$(Lan1Name)] as "$(vLan1FieldName)",
+       [$(Lan2Name)] as "$(vLan2FieldName)"
+  Resident InnerDictionaries
+  where attributeOf like '$(tableName)';
+
+  drop table FieldNames_tmp;
+
+END SUB
+
+
+SUB translationsNewTable (newTableName, existingTableName, keyField)
+// 0 - without KEEP
+  FieldNames_tmp:
+  NoConcatenate
+  Load 
+      "Index",
+      [$(Lan1Name)],
+      [$(Lan2Name)]
+  Resident FieldNamesTable
+  where Index like '$(newTableName)';
+  
+  TRACE $(tableName);
+
+  Let vLan1FieldName = Peek('$(Lan1Name)', -1, 'FieldNames_tmp');
+  Let vLan2FieldName = Peek('$(Lan2Name)', -1, 'FieldNames_tmp');
+  Let vLan3FieldName = Peek('$(Lan3Name)', -1, 'FieldNames_tmp');
+
+  IF existingTableName <> 0 THEN
+    [$(newTableName)]:
+    left keep("$(existingTableName)")
+    Load 
+        "Index" as $(keyField),
+        [$(Lan1Name)] as [$(vLan1FieldName)],
+        [$(Lan2Name)] as [$(vLan2FieldName)]
+    Resident InnerDictionaries
+    where attributeOf like '$(newTableName)';
+    
+    ELSEIF existingTableName = 0 THEN
+    	[$(newTableName)]:
+    	Load 
+            "Index" as $(keyField),
+            [$(Lan1Name)] as [$(vLan1FieldName)],
+            [$(Lan2Name)] as [$(vLan2FieldName)]
+    	Resident InnerDictionaries
+    	where attributeOf like '$(newTableName)';
+   ENDIF
+
+  drop table FieldNames_tmp;
+
+END SUB
+
+SUB translationsJoinInners(tableName, keyField)
+
+  JoinTypes:
+  Load Distinct Reference as joinType
+  Resident InnerDictionaries
+  where attributeOf like '$(tableName)';
+
+  For each vJoinType in FieldValueList('joinType')
+
+    left join("$(tableName)")
+    LOAD Index as "$(keyField)",
+         [$(Lan1Name)] as "$(vPrefix)$(tableName)$(vJoinType)$(Lan1Name)",
+         [$(Lan2Name)] as "$(vPrefix)$(tableName)$(vJoinType)$(Lan2Name)"
+    Resident InnerDictionaries
+    where attributeOf like '$(tableName)'
+    and Reference like '$(vJoinType)';
+
+  next vJoinType;
+
+  drop table JoinTypes;
+
+END SUB
+
+// Determination ISO3code for the short name of the country
+Countries:
+Mapping
+LOAD
+    countryShortName,
+    threeLetterCode
+FROM [$(DIC_QVD_PATH)Countries.qvd] (qvd);
+
+SET vISO3code_set = "ApplyMap('Countries', $1, $2)";
+
+SUB AddEstablishment (tableName,name_pref)
+  concatenate ($(tableName)Hierarchy)
+  load * inline [
+  $(name_pref)establishment_id,	$(name_pref)establishment,	$(name_pref)establishment1,	$(name_pref)establishment2,	$(name_pref)establishment3
+  $(vUndefinedText),				$(vUndefinedText),			$(vUndefinedText),				$(vUndefinedText),				$(vUndefinedText)
+  ¶,								$(vUndefinedText),			$(vUndefinedText),				$(vUndefinedText),				$(vUndefinedText)
+  ];
+ENDSUB
+
+/* 1. Transactions */
+
+exchangeTrades:
+Load * Inline [
+tender_procurementMethodDetails
+exchangeTrades
+];
+
+Releases_exchangeTrades:
+LOAD 
+	IDReleaseOCIDKey as IDReleaseOCIDKey_exchangeTrades,
+    tender_procurementMethodDetails
+FROM [$(TRN_QVD_PATH)Tenders.qvd] (qvd)
+WHERE Exists(tender_procurementMethodDetails);
+
+Drop Table exchangeTrades;
+
+Releases:
+LOAD
+    release_id,
+    IDReleaseOCIDOrig,
+    release_date,
+//    release_tag,
+    release_initiationType,
+    release_source,
+    IDReleaseOCID
+FROM [$(TRN_QVD_PATH)Releases.qvd] (qvd)
+WHERE NOT EXISTS(IDReleaseOCIDKey_exchangeTrades, IDReleaseOCID);
+
+Left Join (Releases)
+Load Distinct
+	IDReleaseOCID,
+    IDReleaseOCID as IDReleaseOCIDKey
+Resident Releases;
+
+DROP TABLE Releases_exchangeTrades;
+
+Tenders:
+LOAD
+    IDTenderOrig,
+    tender_status,
+    tender_date_timePublished,
+    tender_datePublished,
+    tender_procurementMethod,
+    tender_procurementMethodDetails,
+//    tender_procurementMethodOtherDetails,
+//    tender_procurementMethodNegotiationsDetails,
+    tender_procurementMethodRationale,
+//    tender_submisionMethod,
+    tender_title,
+    tender_holder,
+    tender_etpNum,
+    tender_description,
+//    tender_awardCriteria,
+//    tender_eligibilityCriteria,
+    tender_industry as TenderIndustry_id,
+    tender_operatorSite,
+//    tender_qualificationRequirements,
+    tender_funds,
+    tender_numberOfUnpaidBids,
+    tender_numberOfRevokedBids,
+    tender_hasResultProtocol as tender_hasResultProtocol_,
+    tender_hasOpenBidsProtocol as tender_hasOpenBidsProtocol_,
+    tender_hasFirstPartsProtocol as tender_hasFirstPartsProtocol_,
+    tender_hasSecondPartsProtocol as tender_hasSecondPartsProtocol_,
+    tender_hasAuctionProtocol as tender_hasAuctionProtocol_,
+	IDProcuringEntityOrig, 
+//    tender_ProcuringEntity_name, 
+    tender_awardPeriod_endDateTime,
+    tender_awardPeriod_endDate,
+    tender_tenderPeriod_startDateTime,
+    tender_tenderPeriod_startDate,
+    tender_tenderPeriod_endDateTime,
+    tender_tenderPeriod_endDate,
+//    tender_amount,
+//    tender_currency,
+//    tender_participationFees_type,
+//    tender_participationFees_amount,
+//    tender_participationFees_currency,
+    IDReleaseOCIDOrig as IDReleaseOCIDOrig_,
+    IDReleaseOCIDKey,
+    IDTender
+//    IDbuyerKey
+FROM [$(TRN_QVD_PATH)Tenders.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+RelatedProcesses:
+LOAD
+    relatedProcess_id,
+    relatedProcess_relationship,
+    relatedProcess_scheme,
+    relatedProcess_identifier,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)RelatedProcesses.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+Enquiries:
+LOAD
+    enquiries_id,
+    enquiries_dateTime,
+    enquiries_date,
+    enquiries_description,
+    enquiries_dateTimeAnswered,
+    enquiries_dateAnswered,
+    enquiries_answer,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDEnquiries,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)Enquiries.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+Complaints:
+LOAD
+    IDComplaintOrig,
+    complaint_status,
+//    complaint_datePublished,
+    complaint_dateTimePublished,
+    complaint_type,
+    complaint_reviewPlace,
+//    complaint_reviewDate,
+    complaint_reviewDateTime,
+    complaint_resolution,
+    complaint_author_id,
+    complaint_author_name,
+//    complaint_author_id&'-'&complaint_author_name as complaint_author_idname,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDComplaint,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)Complaints.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+Lots_:
+LOAD
+    IDLotOrig,
+    lot_status,
+    lot_description,
+    lot_forSmallScaleBusiness,
+    lot_guarantee_type,
+    lot_guarantee_amount,
+    lot_guarantee_currency,
+    lot_amount,
+    lot_currency,
+    lot_deliveryPeriod_startDate,
+    lot_deliveryPeriod_startDateTime,
+    lot_deliveryPeriod_endDate,
+    lot_deliveryPeriod_endDateTime,
+    lot_auctionPeriod_startDateTime,
+    lot_auctionPeriod_startDate,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDReleaseOCIDKey,
+//    IDTenderKey,
+    IDLot as IDLotKey
+FROM [$(TRN_QVD_PATH)Lots.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+// Items
+Left Join (Lots_)
+LOAD
+    IDItemOrig,
+//    items_relatedLot,
+    items_description,
+    items_quantity,
+    items_financeSource,
+    items_mainCategory,
+    items_classification_scheme,
+    items_classification_id as Lot_OKRB_code, // Check after DATA reload!!!
+//    items_classification_description,
+    items_unit_id,
+    items_unit_name,
+    items_unit_scheme,
+    items_deliveryLocation_description,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+//    IDReleaseOCIDKey,
+//    IDTenderKey,
+    IDLotKey,
+    IDItem as IDItemKey
+FROM [$(TRN_QVD_PATH)Items.qvd] (qvd);
+
+Bids:
+LOAD
+    IDBidOrig,
+    bid_date,
+    bid_dateTime,
+    bid_status,
+//    bid_relatedLot,
+    num(bid_preference,'# ##0%') as bid_preference,
+    bid_proposalType as SME_code,
+    bid_paid,
+    bidIP,
+    IDTendererOrig,
+    bid_tenderers_name,
+    bid_amount,
+    bid_currency,
+    bid_period_endDate,
+    bid_period_endDateTime,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig as IDReleaseOCIDOrigBid,
+    IDBid,
+    IDReleaseOCIDKey,
+//    IDTenderKey,
+    IDLotKey
+//    IDTendererKey
+FROM [$(TRN_QVD_PATH)Bids.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+left join (Bids)
+load IDBid,
+	IDReleaseOCIDKey as IDReleaseOCIDKey_bid
+resident Bids;
+
+drop field IDReleaseOCIDKey from Bids;
+
+
+// Awards
+// In releases there are Awards with the same ID, exclude duplicates!!!
+Awards:
+LOAD Distinct // Change after fix in QVDCreator!!!
+    IDAwardOrig,
+    award_dateTime,
+    award_date,
+    award_dateTimeCreated, // !!! Fix in Creator!!!
+    award_dateCreated,
+    award_status,
+    award_description,
+//    award_amount,
+//    award_currency,
+	award_winner_id,
+    award_winner_id as IDWinnerOrig,
+//    award_winner_name,
+    award_contractPeriod_startDate,
+    award_contractPeriod_startDateTime,
+    award_contractPeriod_endDate,
+    award_contractPeriod_endDateTime,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDAward,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)Awards.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+left join (Awards)
+load IDReleaseOCIDKey,
+	IDReleaseOCIDKey as IDReleaseOCIDKey_award // Drop after KPI
+resident Awards;
+
+drop field IDReleaseOCIDKey from Awards;
+
+Left Join (Awards)
+LOAD Distinct // Change after fix in QVDCreator!!!
+//    award_item_id,
+//    award_item_relatedLot,
+//    award_item_description,
+//    award_item_quantity,
+//    award_item_originCountry,
+//    award_item_classification_id,
+//    award_item_classification_scheme,
+//    award_item_classification_description,
+//    award_item_unit_id,
+//    award_item_unit_scheme,
+//    award_item_unit_name,
+//    IDAwardOrig,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDAward,
+//    IDReleaseOCIDKey,
+//    IDTenderKey,
+    IDLotKey
+FROM [$(TRN_QVD_PATH)AwardItems.qvd] (qvd);
+
+Contracts_:
+LOAD
+    IDContractOrig,
+    contract_dateCreated,
+    contract_dateTimeCreated,
+    contract_dateSigned,
+    contract_dateTimeSigned,
+    contract_date,
+    contract_dateTime,
+    contract_status,
+	contract_financeSource, // Check befor reload!!!
+    contract_funds,
+    contract_title,
+    contract_description,
+    contract_changes,
+    contract_terminationDate,
+    contract_terminationDateTime,
+    terminationReason,
+    contract_period_startDate,
+    contract_period_startDateTime,
+    contract_period_endDate,
+    contract_period_endDateTime,
+    contract_period_maxExtentDate,
+    contract_period_maxExtentDateTime,
+    contract_buyer_id as IDBuyerOrig,
+//    contract_buyer_name,
+    contract_supplier_id as IDSupplierOrig,
+//    contract_supplier_name,
+    contract_amount,
+    contract_currency,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDContract as IDContractKey,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)Contracts.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+ContractItems_:
+LOAD
+    contract_item_id,
+    contract_item_description,
+    contract_item_quantity,
+    contract_item_productCountry,
+    contract_item_positionType,
+    contract_item_classification_id as ContractPosition_OKRB_code,
+    contract_item_classification_scheme,
+    contract_item_classification_description,
+    contract_item_value_amount,
+    contract_item_value_currency,
+    contract_item_execValue_amount,
+    contract_item_execValue_currency,    
+    contract_item_unit_id,
+    contract_item_unit_name,
+    contract_item_unit_scheme,
+    contract_item_unit_amount,
+    contract_item_unit_currency,
+//    IDContractOrig,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig as  contract_item_IDReleaseOCIDOrig,
+    IDContractKey,
+    IDReleaseOCIDKey
+//    IDTenderKey
+FROM [$(TRN_QVD_PATH)ContractItems.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+drop field IDReleaseOCIDKey from ContractItems_;
+
+FailedRules:
+LOAD
+    failed_rule_id,
+    failed_rule_description,
+    failed_rule_operation,
+    failed_rule_condition,
+    failed_rule_kind,
+    failed_rule_needJsonPathResults,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDReleaseOCIDKey
+//    ,IDTenderKey
+FROM [$(TRN_QVD_PATH)FailedRules.qvd] (qvd)
+WHERE EXISTS(IDReleaseOCIDKey);
+
+/* 2. Currency */
+
+Left Join (Contracts_)
+LOAD 
+	 CurrencyRate_date as contract_dateCreated, 
+     CurrencyRate, 
+     CurrencyRate_code as contract_currency
+//     CurrencyRate_nameRu, 
+//     CurrencyRate_nameBe, 
+//     CurrencyRate_nameEn
+FROM [$(DIC_QVD_PATH)CurrencyRates.qvd] (qvd);
+
+Contracts:
+NoConcatenate
+LOAD 
+	 IDContractOrig,
+     '$(vContractUrl)'&IDContractOrig as contract_url,
+     contract_dateCreated, 
+     contract_dateTimeCreated,
+     contract_dateSigned,
+     contract_dateTimeSigned,   
+     contract_date, 
+     contract_dateTime, 
+     contract_status, 
+	 contract_financeSource, // Check befor reload!!!      
+     contract_title, 
+     contract_description, 
+     contract_changes, 
+     contract_terminationDate, 
+     contract_terminationDateTime,
+     contract_funds,
+     terminationReason, 
+     contract_period_startDate, 
+     contract_period_startDateTime, 
+     contract_period_endDate, 
+     contract_period_endDateTime, 
+     contract_period_maxExtentDate, 
+     contract_period_maxExtentDateTime, 
+     IDBuyerOrig, 
+//     contract_buyer_name, 
+     IDSupplierOrig, 
+//     contract_supplier_name,
+	 contract_amount,
+     if(contract_currency <> '$(vLocalVal)', $(vRound2(contract_amount*CurrencyRate)), contract_amount) as contract_amount_byr, 
+     contract_currency, 
+//      IDTenderOrig, 
+//      IDReleaseOCIDOrig, 
+     IDContractKey, 
+     IDReleaseOCIDKey 
+//    IDTenderKey
+Resident   Contracts_; 
+
+DROP Table Contracts_;
+
+
+Left Join (Lots_)
+LOAD 
+      tender_datePublished, 
+      IDReleaseOCIDKey 
+Resident Tenders;
+
+Left Join (Lots_)
+LOAD 
+	 CurrencyRate_date as tender_datePublished, 
+     CurrencyRate, 
+     CurrencyRate_code as lot_currency
+//     CurrencyRate_nameRu, 
+//     CurrencyRate_nameBe, 
+//     CurrencyRate_nameEn
+FROM [$(DIC_QVD_PATH)CurrencyRates.qvd] (qvd);
+
+Lots:
+NoConcatenate
+LOAD     
+    IDLotOrig,
+    lot_status,
+    lot_description,
+    lot_forSmallScaleBusiness,
+    lot_guarantee_type,
+    lot_guarantee_amount,
+    lot_guarantee_currency,
+    lot_amount,
+    if(lot_currency = '$(vLocalVal)' OR Len(lot_currency)<3, lot_amount, $(vRound2(lot_amount*CurrencyRate))) as lot_amount_byr,
+    lot_currency,
+    lot_deliveryPeriod_startDate,
+    lot_deliveryPeriod_startDateTime,
+    lot_deliveryPeriod_endDate,
+    lot_deliveryPeriod_endDateTime,
+    lot_auctionPeriod_startDateTime,
+    lot_auctionPeriod_startDate,
+//    IDTenderOrig,
+//    IDReleaseOCIDOrig,
+    IDReleaseOCIDKey,
+//    IDTenderKey,
+    IDLotKey,
+    IDItemOrig,
+    items_description,
+    items_quantity,
+    items_financeSource,
+    items_mainCategory,
+    items_classification_scheme,
+    Lot_OKRB_code,
+    items_unit_id,
+    items_unit_name,
+    items_unit_scheme,
+    items_deliveryLocation_description,
+    IDItemKey
+Resident  Lots_;
+
+DROP Table Lots_;    
+
+
+Left Join (ContractItems_)
+LOAD Distinct // There are duplicate contracts!!!
+    contract_dateCreated,
+	IDContractKey
+Resident  Contracts;   
+
+Left Join (ContractItems_)
+LOAD 
+	 CurrencyRate_date as contract_dateCreated, 
+     CurrencyRate, 
+     CurrencyRate_code as contract_item_unit_currency
+//     CurrencyRate_nameRu, 
+//     CurrencyRate_nameBe, 
+//     CurrencyRate_nameEn
+FROM [$(DIC_QVD_PATH)CurrencyRates.qvd] (qvd);
+
+ContractItems:
+NoConcatenate
+LOAD
+    contract_item_id,
+    contract_item_description,
+    contract_item_quantity,
+    contract_item_productCountry,
+    if(contract_item_productCountry <> 'Беларусь', 1, 0) as ForeignPosition,
+    $(vISO3code_set([contract_item_productCountry], NULL())) AS contract_item_productCountryISO3code,
+	contract_item_positionType, 
+    ContractPosition_OKRB_code,
+    contract_item_classification_scheme,
+    contract_item_classification_description,
+    contract_item_value_amount,
+    if(contract_item_value_currency = '$(vLocalVal)' OR Len(contract_item_value_currency)<3, contract_item_value_amount, $(vRound2(contract_item_value_amount*CurrencyRate))) as contract_item_value_amount_byr,
+    contract_item_value_currency,
+    contract_item_execValue_amount,
+    if(contract_item_execValue_currency = '$(vLocalVal)' OR Len(contract_item_execValue_currency)<3, contract_item_execValue_amount, $(vRound2(contract_item_execValue_amount*CurrencyRate))) as contract_item_execValue_amount_byr,
+    contract_item_execValue_currency,
+    contract_item_unit_id,
+    contract_item_unit_name,
+    contract_item_unit_scheme,
+    contract_item_unit_amount,
+    if(contract_item_unit_currency = '$(vLocalVal)' OR Len(contract_item_unit_currency)<3, contract_item_unit_amount, $(vRound2(contract_item_unit_amount*CurrencyRate))) as contract_item_unit_amount_byr,
+    contract_item_unit_currency,
+//    contract_item_IDReleaseOCIDOrig,
+    IDContractKey
+Resident ContractItems_;
+
+Drop Table ContractItems_;
+
+/* 3. Dictionary */
+
+//FinanceSources
+ContractFinanceSources:
+LOAD Distinct
+	 IDContractKey,
+	 SubField(contract_financeSource, ',') as contract_financeSource
+Resident Contracts
+Where NOT IsNull(contract_financeSource)
+//Where NOT IsNull(contract_financeSource) AND (IsNum(contract_financeSource) OR Index(contract_financeSource, ',')) OR contract_financeSource = '$(vUndefinedText)'
+; 
+
+DROP Field contract_financeSource From Contracts;
+
+FinanceSources:
+LOAD FinanceSource_id, 
+     FinanceSource
+FROM [$(DIC_QVD_PATH)FinanceSources.qvd] (qvd);
+
+concatenate (FinanceSources)
+load * inline [
+FinanceSource_id,FinanceSource
+$(vUndefinedText),$(vUndefinedText)
+];
+
+Join (ContractFinanceSources)
+LOAD FinanceSource_id as contract_financeSource, 
+     FinanceSource as ContractFinanceSource
+resident FinanceSources;
+
+// TenderIndustries
+TenderIndustries:
+LOAD TenderIndustry_id, 
+     TenderIndustry, 
+     TenderIndustry_parentId
+FROM [$(DIC_QVD_PATH)TenderIndustries.qvd] (qvd);
+
+Concatenate (TenderIndustries)
+Load * Inline [
+TenderIndustry_id,	TenderIndustry_parentId,	TenderIndustry
+0,					1,							Unregistered data
+];
+
+CALL RHierarchy('Tenders', 'TenderIndustries', 'TenderIndustry_id', 'TenderIndustry_parentId', 'TenderIndustry', '');
+
+DROP Table TenderIndustries;
+
+//FinanceSources
+LotFinanceSources:
+LOAD Distinct
+	 IDItemKey,
+	 SubField(items_financeSource, ',') as items_financeSource
+Resident Lots
+Where NOT IsNull(items_financeSource)
+//Where NOT IsNull(items_financeSource) AND (IsNum(items_financeSource) OR Index(items_financeSource, ',')) OR items_financeSource = '$(vUndefinedText)'
+; 
+
+DROP Field items_financeSource From Lots;
+
+Join (LotFinanceSources)
+LOAD FinanceSource_id as items_financeSource, 
+     FinanceSource as LotFinanceSource
+resident FinanceSources;
+
+drop table FinanceSources;
+
+// SME
+SME:
+LOAD
+    SME_code,
+    SME,
+    SME_internationalClassificator
+FROM [$(DIC_QVD_PATH)SME.qvd] (qvd);
+
+// OKRB lot
+OKRB_lot:
+LOAD 
+	 OKRB_code, 
+     OKRB,
+     OKRB_ParentCode
+FROM [$(DIC_QVD_PATH)OKRB.qvd] (qvd);
+
+//Sections	 ХХ 
+//Groups	 ХХ.Х +
+//Classes	 ХХ.ХХ +
+//Categories ХХ.ХХ.Х +
+//Subcategories	ХХ.ХХ.ХХ +
+//Kinds	ХХ.ХХ.ХХ.Х
+//Subkinds	ХХ.ХХ.ХХ.ХХ
+//Groupings	ХХ.ХХ.ХХ.ХХХ +
+
+CALL RHierarchy('Lots', 'OKRB_lot', 'OKRB_code', 'OKRB_ParentCode', 'OKRB', 'Lot_');
+
+DROP Table OKRB_lot;
+
+
+
+// OKRB ContractPosition
+OKRB_ContractPosition:
+LOAD 
+	 OKRB_code, 
+     OKRB,
+     OKRB_ParentCode
+FROM [$(DIC_QVD_PATH)OKRB.qvd] (qvd);
+
+CALL RHierarchy('ContractItems', 'OKRB_ContractPosition', 'OKRB_code', 'OKRB_ParentCode', 'OKRB', 'ContractPosition_');
+
+DROP Table OKRB_ContractPosition;
+
+
+ProcuringEntities:
+LOAD
+    IDprocuringEntityOrig as IDProcuringEntityOrig,
+    procuringEntity_name as ProcuringEntityName,
+//    IDprocuringEntityOrig&'-'&procuringEntity_name as procuringEntity_idname,
+//     procuringEntity_scheme,
+//     procuringEntity_id,
+//     procuringEntity_legalName,
+//     procuringEntity_additionalIdentifier_scheme,
+    procuringEntity_additionalIdentifier_id as ProcuringEntityOkpo,
+//     procuringEntity_additionalIdentifier_legalName,
+    procuringEntity_countryName as ProcuringEntityCountry,
+    procuringEntity_locality as ProcuringEntityLocality,
+    procuringEntity_postalCode as ProcuringEntityIndex,
+    procuringEntity_region as ProcuringEntityRegion,
+    procuringEntity_streetAddress as ProcuringEntityStreetAddress,
+//     procuringEntity_contactPoint_name,
+    procuringEntity_contactPoint_email as ProcuringEntityEmail,
+    procuringEntity_contactPoint_telephone as ProcuringEntityTelephone,
+    procuringEntity_contactPoint_faxNumber as ProcuringEntityFaxNumber,
+    procuringEntity_contactPoint_url as ProcuringEntityUrl,
+    procuringEntity_department as  ProcuringEntity_establishment_id, // Check after fix!!!
+    procuringEntity_branch as ProcuringEntityBranch,
+    procuringEntity_branchDivision as ProcuringEntityBranchDivision,
+//     procuringEntity_export,
+//     procuringEntity_organisationType,
+//     procuringEntity_organisationForm,
+     procuringEntity_organisationStatus,
+     procuringEntity_budgetType,
+     procuringEntity_isFilial,
+     procuringEntity_scale,
+//     procuringEntity_latestRelease_date,
+     IDprocuringEntity
+FROM [$(DIC_QVD_PATH)procuringEntity.qvd] (qvd)
+Where Exists(IDProcuringEntityOrig, IDprocuringEntityOrig);
+
+
+// ProcuringEntity Establishments
+ProcuringEntityEstablishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('ProcuringEntities', 'ProcuringEntityEstablishments', 'establishment_id', 'establishment_parentId', 'establishment', 'ProcuringEntity_');
+
+DROP Table ProcuringEntityEstablishments;
+
+// Tenderers
+Tenderers:
+LOAD
+    IDtendererOrig as IDTendererOrig,
+    tenderer_name as TendererName,
+//     tenderer_scheme,
+//     tenderer_id,
+//     tenderer_legalName,
+//     tenderer_additionalIdentifier_scheme,
+    tenderer_additionalIdentifier_id as TendererOkpo,
+//    tenderer_additionalIdentifier_legalName,
+    tenderer_countryName as TendererCountry,
+//    if(tenderer_countryName <> 'Беларусь', 1, 0) as ForeignParticipant,
+    tenderer_locality as TendererLocality,
+    tenderer_postalCode as TendererIndex,
+    tenderer_region as TendererRegion,
+    tenderer_streetAddress as TendererStreetAddress,
+    tenderer_contactPoint_name as TendererContactPointName,
+    tenderer_contactPoint_email as TendererEmail,
+    tenderer_contactPoint_telephone as TendererTelephone,
+    tenderer_contactPoint_faxNumber as TendererFaxNumber,
+    tenderer_contactPoint_url as TendererUrl,
+    tenderer_department as Tenderer_establishment_id, // Check after fix!!!
+    tenderer_branch as TendererBranch,
+    tenderer_branchDivision as TendererBranchDivision,
+//     tenderer_export,
+//     tenderer_organisationType,
+//     tenderer_organisationForm,
+     tenderer_organisationStatus,
+     tenderer_budgetType,
+     tenderer_isFilial,
+     tenderer_scale,
+//     tenderer_latestRelease_date,
+     IDtenderer
+FROM [$(DIC_QVD_PATH)tenderer.qvd] (qvd)
+Where Exists(IDTendererOrig, IDtendererOrig);
+
+// Buyers
+Buyers:
+LOAD
+    IDbuyerOrig as IDBuyerOrig,
+    buyer_name as BuyerName,
+//    IDbuyerOrig&'-'&buyer_name as buyer_idname,
+//     buyer_scheme,
+//     buyer_id,
+//     buyer_legalName,
+//     buyer_additionalIdentifier_scheme,
+    buyer_additionalIdentifier_id as BuyerOkpo,
+//    buyer_additionalIdentifier_legalName,
+    buyer_countryName as BuyerCountry,
+    buyer_locality as BuyerLocality,
+    buyer_postalCode as BuyerIndex,
+    buyer_region as BuyerRegion,
+    buyer_streetAddress as BuyerStreetAddress,
+//    buyer_contactPoint_name,
+    buyer_contactPoint_email as BuyerEmail,
+    buyer_contactPoint_telephone as BuyerTelephone,
+    buyer_contactPoint_faxNumber as BuyerFaxNumber,
+    buyer_contactPoint_url as BuyerUrl,
+    buyer_department as Buyer_establishment_id, // Check after fix!!!
+    buyer_branch as BuyerBranch,
+    buyer_branchDivision as BuyerBranchDivision,
+//     buyer_export,
+//     buyer_organisationType,
+//     buyer_organisationForm,
+     buyer_organisationStatus,
+     buyer_budgetType,
+     buyer_isFilial,
+     buyer_scale,
+//     buyer_latestRelease_date,
+     IDbuyer
+FROM [$(DIC_QVD_PATH)buyer.qvd] (qvd)
+Where Exists(IDBuyerOrig, IDbuyerOrig);
+
+// Buyer Establishments
+BuyerEstablishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('Buyers', 'BuyerEstablishments', 'establishment_id', 'establishment_parentId', 'establishment', 'Buyer_');
+
+DROP Table BuyerEstablishments;
+
+// Suppliers
+Suppliers:
+LOAD
+    IDsupplierOrig as IDSupplierOrig,
+    supplier_name as SupplierName,
+//    IDsupplierOrig&'-'&supplier_name as supplier_idname,
+//     supplier_scheme,
+//     supplier_id,
+//     supplier_legalName,
+//     supplier_additionalIdentifier_scheme,
+    supplier_additionalIdentifier_id as SupplierOkpo,
+//    supplier_additionalIdentifier_legalName,
+    supplier_countryName as SupplierCountry,
+//    if(supplier_countryName <> 'Беларусь', 1, 0) as ForeignSupplier,
+    supplier_locality as SupplierLocality,
+    supplier_postalCode as SupplierIndex,
+    supplier_region as SupplierRegion,
+    supplier_streetAddress as SupplierStreetAddress,
+    supplier_contactPoint_name as SupplierContactPointName,
+    supplier_contactPoint_email as SupplierEmail,
+    supplier_contactPoint_telephone as SupplierTelephone,
+    supplier_contactPoint_faxNumber as SupplierFaxNumber,
+    supplier_contactPoint_url as SupplierUrl,
+    supplier_department as Supplier_establishment_id, // Check after fix!!!
+    supplier_branch as SupplierBranch,
+    supplier_branchDivision as SupplierBranchDivision,
+//     supplier_export,
+//     supplier_organisationType,
+//     supplier_organisationForm,
+     supplier_organisationStatus,
+     supplier_budgetType,
+     supplier_isFilial,
+     supplier_scale,
+//     supplier_latestRelease_date,
+     IDsupplier
+FROM [$(DIC_QVD_PATH)supplier.qvd] (qvd)
+Where Exists(IDSupplierOrig, IDsupplierOrig);
+
+SupplierEstablishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('Suppliers', 'SupplierEstablishments', 'establishment_id', 'establishment_parentId', 'establishment', 'Supplier_');
+
+DROP Table SupplierEstablishments;
+
+Winners:
+LOAD
+    IDwinnerOrig as IDWinnerOrig,
+    winner_name as WinnerName,
+//    IDwinnerOrig&'-'&winner_name as winner_idname,
+//     winner_scheme,
+//     winner_id,
+//     winner_legalName,
+//     winner_additionalIdentifier_scheme,
+    winner_additionalIdentifier_id as WinnerOkpo,
+//    winner_additionalIdentifier_legalName,
+    winner_countryName as WinnerCountry,
+    winner_locality as WinnerLocality,
+    winner_postalCode as WinnerIndex,
+    winner_region as WinnerRegion,
+    winner_streetAddress as WinnerStreetAddress,
+    winner_contactPoint_name as WinnerContactPointName,
+    winner_contactPoint_email as WinnerEmail,
+    winner_contactPoint_telephone as WinnerTelephone,
+    winner_contactPoint_faxNumber as WinnerFaxNumber,
+    winner_contactPoint_url as WinnerUrl,
+    winner_department as Winner_establishment_id, // Check after fix!!!
+    winner_branch as WinnerBranch,
+    winner_branchDivision as WinnerBranchDivision,
+//     winner_export,
+//     winner_organisationType,
+//     winner_organisationForm,
+     winner_organisationStatus,
+     winner_budgetType,
+     winner_isFilial,
+     winner_scale,
+//     winner_latestRelease_date,
+     IDwinner
+FROM [$(DIC_QVD_PATH)winner.qvd] (qvd)
+Where Exists(IDWinnerOrig, IDwinnerOrig);
+
+WinnerEstablishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('Winners', 'WinnerEstablishments', 'establishment_id', 'establishment_parentId', 'establishment', 'Winner_');
+
+DROP Table WinnerEstablishments;
+
+SET OTHERSYMBOL = ¶;
+
+Concatenate (OKRB_lotHierarchy)
+Load * Inline [
+Lot_OKRB_code, Lot_OKRB, 		Lot_OKRB1, 		Lot_OKRB2, 		Lot_OKRB3, 		Lot_OKRB4, 		Lot_OKRB5
+¶,			   Incorrect data,	Incorrect data,	Incorrect data,	Incorrect data,	Incorrect data,	Incorrect data
+];
+
+Concatenate (OKRB_ContractPositionHierarchy)
+Load * Inline [
+ContractPosition_OKRB_code, ContractPosition_OKRB, ContractPosition_OKRB1, ContractPosition_OKRB2, ContractPosition_OKRB3, ContractPosition_OKRB4, ContractPosition_OKRB5
+¶,							Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data
+];
+
+Concatenate (SME)
+Load * Inline [
+SME_code,     SME,     			SME_internationalClassificator
+$(vUndefinedText),$(vUndefinedText),$(vUndefinedText)
+¶,			  Incorrect data,	Incorrect data
+];
+
+CALL AddEstablishment('ProcuringEntityEstablishments','ProcuringEntity_');
+CALL AddEstablishment('BuyerEstablishments','Buyer_');
+CALL AddEstablishment('SupplierEstablishments','Supplier_');
+CALL AddEstablishment('WinnerEstablishments','Winner_');
+
+/* 4. For KPI */
+
+// Determination of answered questions, electronic questions, length of the description of the question, time to answer the question
+Left Join (Enquiries)
+Load
+	 IDEnquiries,
+     if(IsNull(enquiries_answer) OR enquiries_answer = '', DUAL('$(vNOText)',0), DUAL('$(vYESText)',1)) as enquiries_is_answered,
+     if(enquiries_description = '', 0, 1) as enquiries_is_electronic,
+     Len(enquiries_description) as enquiries_length,
+     if(IsNull(enquiries_answer) OR enquiries_answer = '', null(), enquiries_dateTimeAnswered - enquiries_dateTime) as time_to_answer_enquiry
+Resident Enquiries;     
+
+Drop Fields enquiries_dateTimeAnswered, enquiries_dateTime;
+
+// Determine of complaint with decision
+Left Join (Complaints)
+Load
+	 IDComplaint,
+     if(IsNull(complaint_resolution) OR complaint_resolution = '', 0, 1) as complaint_with_resolution,
+     complaint_reviewDateTime - complaint_dateTimePublished as time_to_review_complaint
+Resident Complaints;  
+
+Drop Fields complaint_reviewDateTime, complaint_dateTimePublished;
+
+// Determine of MAX contract signing dates
+left join (Tenders)
+load IDReleaseOCIDKey, max(contract_dateTimeCreated) as max_contract_dateTimeCreated
+resident Contracts
+group by IDReleaseOCIDKey;
+
+// Determine of MAX awards date
+left join (Tenders)
+load IDReleaseOCIDKey_award as IDReleaseOCIDKey,
+	max(award_date) as max_award_date,
+	max(award_dateTime) as max_award_dateTime,
+    max(award_dateCreated) as max_award_dateCreated,
+    max(award_dateTimeCreated) as max_award_dateTimeCreated
+resident Awards
+where award_status like 'active' 
+group by IDReleaseOCIDKey_award;
+
+// Calculation of cost reduction
+Left Join (Tenders)
+Load
+	 IDReleaseOCIDKey,
+     $(vRound2(SUM(lot_amount_byr))) as ReleaseLotAmount
+Resident  Lots
+Group By IDReleaseOCIDKey;   
+
+Left Join (Tenders)
+Load
+	 IDReleaseOCIDKey,
+     $(vRound2(SUM(contract_amount_byr))) as ReleaseContractAmount
+Resident  Contracts
+Group By IDReleaseOCIDKey;
+
+// The organizer is the customer according to release / organizer (customer)
+left join (Tenders)
+load distinct IDReleaseOCIDKey,
+	IDBuyerOrig as IDProcuringEntityOrig,
+	1 as  procuringEntityIsBuyer_tmp
+Resident  Contracts;
+
+// Determination of savings, competitiveness, duration of periods
+Left Join (Tenders)
+Load
+	 IDReleaseOCIDKey,
+     Round(Floor(RangeSum(ReleaseLotAmount, -ReleaseContractAmount), 0.001), 0.01) as price_reduction,
+     if(Match(tender_procurementMethodDetails, 'Request', 'Auction', 'Trade', 'eTrade', 'negotiations', 'contractingTrades'), 1, if(tender_procurementMethodDetails = 'singleSource',0,2)) as tender_is_competitive,
+	 subfield(tender_title,'№',2) as tender_IceNum, // Tender No from  title
+     if(SubStringCount(IDReleaseOCIDOrig_,'contract-based')=0,'$(vTenderUrl)','$(vContractUrl)')&IDTenderOrig as tender_url,
+	 IF(procuringEntityIsBuyer_tmp = 1,DUAL('$(vDAText)',1),DUAL('$(vNETText)',0)) as  procuringEntityIsBuyer,
+    // tendering_duration - Duration of clarification and submission of proposals
+ 	if(not (tender_tenderPeriod_endDate = '$(vBeginDate)' or isnull(tender_tenderPeriod_endDateTime))
+    	AND not (tender_datePublished = '$(vBeginDate)' or isnull(tender_date_timePublished)),
+    	tender_tenderPeriod_endDateTime - tender_date_timePublished) as tendering_duration,
+    // award_duration - Duration of the decision on the proposal
+	if(not (max_award_dateCreated = '$(vBeginDate)' or isnull(max_award_dateTimeCreated)) 
+    	AND not (tender_tenderPeriod_endDate = '$(vBeginDate)' or isnull(tender_tenderPeriod_endDateTime)), 
+    	max_award_dateTimeCreated - tender_tenderPeriod_endDateTime) as award_duration,
+    // awardPublication_duration - Duration of publication of the decision
+	if(not (max_award_date = '$(vBeginDate)' or isnull(max_award_dateTime)) 
+    	AND not (max_award_dateCreated = '$(vBeginDate)' or isnull(max_award_dateTimeCreated)), 
+    	max_award_dateTime - max_award_dateTimeCreated) as awardPublication_duration,
+    // procedure_duration - duration of procedures
+ 	if(not (tender_datePublished = '$(vBeginDate)' or isnull(tender_date_timePublished))
+    	AND not (max_award_date = '$(vBeginDate)' or isnull(max_award_dateTime)),
+    	max_award_dateTime - tender_date_timePublished) as procedure_duration,
+    // Протоколы
+    	if(tender_hasResultProtocol_ = 1, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as tender_hasResultProtocol,
+        if(tender_hasOpenBidsProtocol_ = 1, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as tender_hasOpenBidsProtocol,
+        if(tender_hasFirstPartsProtocol_ = 1, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as tender_hasFirstPartsProtocol,
+        if(tender_hasSecondPartsProtocol_ = 1, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as tender_hasSecondPartsProtocol,
+        if(tender_hasAuctionProtocol_ = 1, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as tender_hasAuctionProtocol
+Resident  Tenders;
+
+Drop Fields ReleaseLotAmount, ReleaseContractAmount,
+	max_award_date,max_award_dateTime,max_award_dateCreated,max_award_dateTimeCreated,
+    procuringEntityIsBuyer_tmp,
+    IDReleaseOCIDOrig_
+	//	,max_contract_dateTimeCreated
+FROM Tenders;  
+
+// Definition of participated / won by awards
+Bids_tmp:
+NoConcatenate
+Load distinct IDLotKey,IDTendererOrig
+resident Bids;
+
+left join (Bids_tmp)
+Load distinct IDLotKey,award_winner_id
+resident Awards
+where award_status='active';
+
+left join (Bids)
+Load IDLotKey,IDTendererOrig,
+	if(bidder_winner_=0,0,1) as bidder_winner;
+load IDLotKey,IDTendererOrig,
+	sum(if(len(award_winner_id)>0 and IDTendererOrig = award_winner_id,1,0)) as bidder_winner_
+resident Bids_tmp
+group by IDLotKey,IDTendererOrig;
+
+DROP TABLE Bids_tmp;
+
+// Suppliers and customers only non-competitive
+left join(Contracts)
+Load IDReleaseOCIDKey,
+	 tender_is_competitive
+Resident Tenders;
+
+left join(Buyers)
+Load IDBuyerOrig,
+	 if(Concat(DISTINCT tender_is_competitive)=0, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as buyer_only_nonCompetitive
+Resident Contracts
+Group by IDBuyerOrig;
+
+left join(Suppliers)
+Load IDSupplierOrig,
+	 if(Concat(DISTINCT tender_is_competitive)=0, DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as supplier_only_nonCompetitive
+Resident Contracts
+Group by IDSupplierOrig;
+
+drop field tender_is_competitive from Contracts; 
+
+// Adding Winners to Participants
+concatenate (Tenderers)
+load 
+	'#'&IDwinner as IDtenderer,
+	IDWinnerOrig as IDTendererOrig,
+	winner_budgetType as tenderer_budgetType,
+	Winner_establishment_id as Tenderer_establishment_id,
+	winner_isFilial as tenderer_isFilial,
+    winner_scale as tenderer_scale,
+	winner_organisationStatus as tenderer_organisationStatus,
+	WinnerBranch as TendererBranch,
+	WinnerBranchDivision as TendererBranchDivision,
+	WinnerCountry as TendererCountry,
+    WinnerContactPointName as TendererContactPointName,
+	WinnerEmail as TendererEmail,
+	WinnerFaxNumber as TendererFaxNumber,
+	WinnerIndex as TendererIndex,
+	WinnerLocality as TendererLocality,
+	WinnerName as TendererName,
+	WinnerOkpo as TendererOkpo,
+	WinnerRegion as TendererRegion,
+	WinnerStreetAddress as TendererStreetAddress,
+	WinnerTelephone as TendererTelephone,
+	WinnerUrl as TendererUrl
+resident Winners
+Where not Exists(IDTendererOrig, IDWinnerOrig);
+
+// Adding fictive bids from awards
+Left Join (Bids)
+Load
+	 IDBid,
+     1 as BID_flag, // non fictive bid
+     IDLotKey&'|'&IDTendererOrig as bids_lot_tenderer,
+     if(bid_preference<>0,1,0) as bid_with_preference
+Resident  Bids;
+ 
+awards_bids:
+Load distinct
+	 IDLotKey,
+     IDWinnerOrig,
+	 IDLotKey&'|'&IDWinnerOrig as awards_lot_tenderer,
+     award_status
+Resident  Awards;
+
+Concatenate (Bids)
+load IDLotKey,
+	'#'&AutoNumber(awards_lot_tenderer&'|'&award_status,'awards_bidsID') as IDBid,
+    IDWinnerOrig as IDTendererOrig,
+    if(award_status='active',1,0) as bidder_winner,
+    0 as BID_flag
+resident awards_bids
+Where not Exists(bids_lot_tenderer, awards_lot_tenderer);
+
+drop field bids_lot_tenderer;
+drop table awards_bids;
+
+
+Left Join (Tenderers)
+Load
+	 IDTendererOrig,
+     if(TendererCountry <> 'Беларусь', 1, 0) as ForeignParticipant
+Resident Tenderers;
+
+TendererEstablishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('Tenderers', 'TendererEstablishments', 'establishment_id', 'establishment_parentId', 'establishment', 'Tenderer_');
+
+DROP Table TendererEstablishments;
+
+CALL AddEstablishment('TendererEstablishments','Tenderer_');
+
+// Номер бида из id
+Left Join (Bids)
+Load
+	 IDBidOrig,
+     subfield(IDBidOrig,'-',1) as IDBidNumber
+Resident  Bids;
+
+// ID - SupplierName
+Left Join (Suppliers)
+Load
+	 IDsupplier,
+     if(Match(supplier_scale, 'mini', 'micro', 'medium'), DUAL('$(vDAText)',1), DUAL('$(vNETText)',0)) as smalScaleSupplier,
+     SupplierName&'-'&IDSupplierOrig as supplier_idname,
+     if(SupplierCountry <> 'Беларусь', 1, 0) as ForeignSupplier,
+     $(vISO3code_set(SupplierCountry, NULL())) AS SupplierCountryISO3code,
+     if(SupplierCountry = 'Беларусь', SupplierRegion) as SupplierRegionBY,
+     if(SupplierCountry = 'Беларусь' and SupplierRegion = 'г. Минск',1,if(SupplierCountry = 'Беларусь',0)) as supplier_from_capital
+Resident Suppliers;
+
+// ID - Complainter Name
+Left Join (Complaints)
+Load
+	 IDComplaint,
+     complaint_author_name&'-'&complaint_author_id as complaint_author_idname
+Resident Complaints;
+
+// ID - ProcuringEntity Name
+Left Join (ProcuringEntities)
+Load
+	 IDprocuringEntity,
+     ProcuringEntityName&'-'&IDProcuringEntityOrig as procuringEntity_idname
+Resident ProcuringEntities;
+
+// ID - Buyer Name
+Left Join (Buyers)
+Load
+	 IDbuyer,
+     BuyerName&'-'&IDBuyerOrig as buyer_idname,
+     if(Match(buyer_scale, 'mini', 'micro', 'medium'), DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as smalScaleBuyer,
+     if(BuyerRegion='г. Минск',DUAL('$(vYESText)',1),DUAL('$(vNOText)',0)) as buyer_from_capital 
+Resident Buyers;
+
+// ID - Tenderer Region
+Left Join (Tenderers)
+Load
+	 IDTendererOrig,
+     TendererName&'-'&IDTendererOrig as tenderer_idname,
+     IF(ISNULL(TendererRegion),IDTendererOrig,IDTendererOrig&'-'&TendererRegion) as tenderer_idplace
+Resident Tenderers;
+
+// The winning participant is a subject of small scale enterprises; ID - Winner Name; Winner ID
+Left Join (Winners)
+Load
+	 IDwinner,
+     if(Match(winner_scale, 'mini', 'micro', 'medium'), DUAL('$(vDAText)',1), DUAL('$(vNETText)',0)) as smalScaleWinner,
+     WinnerName&'-'&IDWinnerOrig as winner_idname,
+     IF(ISNULL(WinnerRegion),IDWinnerOrig,IDWinnerOrig&'-'&WinnerRegion) as winner_idplace,
+     if(WinnerCountry <> 'Беларусь', 1, 0) as ForeignWinner
+Resident Winners;
+
+// Identification of other participants in the procedure
+left join (Awards)
+load distinct IDWinnerOrig,
+	winner_idplace
+resident Winners;
+
+left join (Bids)
+load distinct IDTendererOrig,
+	tenderer_idplace
+Resident  Tenderers;
+
+left join (Awards)
+load distinct IDLotKey,
+	concat(tenderer_idplace,';') as all_tenderers_idplace
+resident Bids
+group by IDLotKey;
+
+left join (Awards)
+load distinct IDLotKey, IDWinnerOrig,
+	if(isnull(winner_idplace),
+    	all_tenderers_idplace,
+        Replace(
+        	Replace(
+				Replace(
+					all_tenderers_idplace,
+					';'&winner_idplace,
+					''),
+				winner_idplace&';',
+				''),
+        	winner_idplace,'')      
+    ) as other_tenderers_idplace
+resident Awards;
+
+drop field winner_idplace from Awards;
+drop field tenderer_idplace from Bids;
+
+tenderer_regions:
+Left Keep (Tenderers)
+LOAD
+    region as TendererRegion,
+    area_coordinates as tenderer_area_coordinates
+FROM [$(LOCAL_FILES_PATH)BLR_Regions.qvd]
+(qvd);
+
+buyer_regions:
+Left Keep (Buyers)
+LOAD
+    region as BuyerRegion,
+    area_coordinates as buyer_area_coordinates
+FROM [$(LOCAL_FILES_PATH)BLR_Regions.qvd]
+(qvd);
+
+// winner for contract
+left join (Contracts)
+load IDReleaseOCIDKey_award as IDReleaseOCIDKey,
+	concat(IDWinnerOrig,';') as contract_winners
+resident Awards
+where award_status='active'
+group by IDReleaseOCIDKey_award;
+
+Tenderers_SME:
+LOAD
+    SME_code AS tenderer_scale,
+    SME as tenderer_SME
+Resident SME;
+
+ProcuringEntities_SME:
+LOAD
+    SME_code AS procuringEntity_scale,
+    SME as procuringEntity_SME
+Resident SME;
+
+Winners_SME:
+LOAD
+    SME_code AS winner_scale,
+    SME as winner_SME
+Resident SME;
+
+/* 5. Variables */
+
+//====ПОЛЯ====
+SET vTenderId = 'IDTenderOrig';
+SET vTenderStatus = 'tender_status';
+SET vTenderProcurementMethod = 'tender_procurementMethod';
+SET vTenderProcurementMethodDetails = 'tender_procurementMethodDetails';
+SET vTenderProcurementMethodRationale = '[Основание применения закупки из одного источника]'; //tender_procurementMethodRationale
+SET vTenderCompetitive = 'tender_is_competitive';
+SET vTenderDatePublished = '[Дата публикации]'; //tender_datePublished
+SET vTenderBiddingStart = '[Начало приема предложений]'; //tender_tenderPeriod_startDate
+SET vTenderBiddingEnd = '[Окончание приема предложений]'; //tender_tenderPeriod_endDate
+SET vTenderTitle = '[Процедура закупки]'; //tender_title
+SET vTenderDescription = '[Описание процедуры закупки]'; //tender_description
+SET vTenderIndustry = '[Отрасль закупки]'; //TenderIndustry
+SET vTenderOperatorSite = 'tender_operatorSite';
+SET vTenderFunds = 'tender_funds';
+SET vNumberOfUnpaidBids = 'tender_numberOfUnpaidBids';
+SET vNumberOfRevokedBids = 'tender_numberOfRevokedBids';
+SET vTenderIceNum = '[Номер процедуры]'; //tender_IceNum
+SET vTenderETPNum = 'tender_etpNum';
+SET vTenderHolder = 'tender_holder';
+SET vTenderHasResultProtocol = '[Протокол о выборе участника-победителя или ином результате]'; //tender_hasResultProtocol
+SET vTenderHasOpenBidsProtocol = '[Протокол открытия предложений]'; //tender_hasOpenBidsProtocol
+SET vTenderHasFirstPartsProtocol = '[Протокол рассмотрения первых частей заявок]'; //tender_hasFirstPartsProtocol
+SET vTenderHasSecondPartsProtocol = '[Протокол рассмотрения вторых частей заявок]'; //tender_hasSecondPartsProtocol
+SET vTenderHasAuctionProtocol = '[Протокол проведения торгов]'; //tender_hasAuctionProtocol
+
+SET vLotId = 'IDItemKey';
+SET vLotStatus = 'lot_status';
+SET vLotValue = 'lot_amount';
+SET vLotValueBYR = '[Ориентировочная стоимость лота]'; //lot_amount_byr
+SET vLotOKRB = '[Код ОКРБ лота]'; //Lot_OKRB
+SET vLotDescription = '[Описание предмета закупки]'; //items_description
+SET vLotQuantity = '[Количество единиц]'; //items_quantity
+SET vLotUnitName = '[Единицы измерения]'; //items_unit_name
+SET vAuctionStartDate = 'lot_auctionPeriod_startDate';
+SET vLotGSW = 'items_mainCategory';
+SET vLotForSmallScaleBusiness = 'lot_forSmallScaleBusiness';
+SET vLotFinanceSource = '[Источник финансирования]'; //LotFinanceSource
+SET vLotIdOrig = '[Номер лота]'; //IDLotOrig
+
+SET vAwardId = 'IDAward';
+SET vAwardDate = 'award_date';
+
+SET vBidId = 'IDBid';
+SET vBidStatus = 'bid_status';
+SET vBidDate = 'bid_date';
+SET vPreferenceValue = '[Преференциальная поправка]'; //bid_preference
+SET vBidDecisionDate = 'bid_period_endDate';
+SET vProposalType = 'SME';
+SET vBidIP = 'bidIP';
+SET vBidNumber = 'IDBidNumber';
+
+SET vContractId = '[Номер договора]'; //IDContractOrig
+SET vContractStatus = 'contract_status';
+SET vContractValue = 'contract_amount';
+SET vContractValueBYR = '[Cумма договора]'; //contract_amount_byr
+SET vContractDate = '[Дата последнего изменения]'; //contract_date
+SET vContractDatePublished = '[Дата публикации договора]'; //contract_dateCreated
+SET vContractTerminationDate = 'contract_terminationDate';
+SET vContractTerminationReason = 'terminationReason';
+SET vContractDateSigned = 'contract_dateSigned';
+SET vContractEndDate = 'contract_period_endDate';
+SET vContractMaxExsecutionDate = '[Срок исполнения договора]'; //contract_period_maxExtentDate
+SET vContractTitle = 'contract_title';
+SET vContractDescription = '[Предмет договора]'; //contract_description
+SET vContractFinanceSource = '[Источник финансирования договора]'; //ContractFinanceSource
+SET vContractFunds = 'contract_funds';
+SET vContractPositionId = 'contract_item_id';
+SET vProductCountry = '[Страна происхождения позиции договора]'; //contract_item_productCountry
+SET vContractPositionValue = 'contract_item_value_amount';
+SET vContractPositionValueBYR = '[Сумма позиции договора]'; //contract_item_value_amount_byr
+SET vContractPositionCurrency = 'contract_item_value_currency';
+SET vGSW = 'contract_item_positionType';
+SET vContractPositionDescription = '[Позиция договора]'; //contract_item_description
+SET vContractPositionQuantity = '[Количество единиц позиции]'; //contract_item_quantity
+SET vContractPositionUnitName = '[Единицы измерения позиции]'; //contract_item_unit_name
+SET vContractPositionUnitValue = 'contract_item_unit_amount';
+SET vContractPositionUnitValueBYR = '[Сумма за единицу позиции]'; //contract_item_unit_amount_byr
+SET vContractPositionUnitCurrency = 'contract_item_unit_currency';
+SET vContractPositionOKRB = '[Код ОКРБ позиции договора]'; //ContractPosition_OKRB
+SET vContractChanges = 'contract_changes';
+SET vContractWinnerId = 'contract_winners';
+SET vContractPositionExecValue = 'contract_item_execValue_amount';
+SET vContractPositionExecValueBYR = 'contract_item_execValue_amount_byr';
+SET vContractPositionExecCurrency = 'contract_item_execValue_currency';
+
+SET vEnquiryId = 'IDEnquiries';
+SET vEnquiryLength = 'enquiries_length';
+SET vEnquiryDateAnswered = '[Дата ответа]'; //enquiries_dateAnswered
+SET vEnquiryDate = '[Дата вопроса]'; //enquiries_date
+SET vEnquiryDescription = '[Текст вопроса]'; //enquiries_description
+SET vEnquiryAnswer = '[Текст ответа]'; //enquiries_answer
+SET vEnquiryIsAnswered = '[Наличие ответа на вопрос]'; //enquiries_is_answered
+SET vEnquiryIsElectronic = 'enquiries_is_electronic';
+SET vEnquiriesTimeToAnswerField = 'time_to_answer_enquiry';
+
+SET vComplaintId = 'IDComplaint';
+SET vComplaintStatus = 'complaint_status';
+SET vCompaintDate = 'complaint_datePublished';
+SET vCompaintReviewDate = 'complaint_reviewDate';
+SET vComplaintResolution = 'complaint_resolution';
+SET vComplaintWithResolution = 'complaint_with_resolution';
+SET vComplaintTimeToReviewField = 'time_to_review_complaint';
+
+SET vComplainerId = 'complaint_author_id';
+SET vComplainerName = 'complaint_author_name';
+SET vComplainerIdName = 'complaint_author_idname';
+
+SET vProcuringEntityId = '[ИНН организатора]'; //IDProcuringEntityOrig
+SET vProcuringEntityOKPO = '[ОКПО организатора]'; //ProcuringEntityOkpo
+SET vProcuringEntityName = '[Наименование организатора]'; //ProcuringEntityName
+SET vProcuringEntityDepartment = '[Ведомственная принадлежность организатора]'; //ProcuringEntity_establishment
+SET vProcuringEntityBranch = 'ProcuringEntityBranch';
+SET vProcuringEntityBranchDivision = 'ProcuringEntityBranchDivision';
+SET vProcuringEntityCountry = '[Страна организатора]'; //ProcuringEntityCountry
+SET vProcuringEntityRegion = 'ProcuringEntityRegion';
+SET vProcuringEntityCity = 'ProcuringEntityLocality';
+SET vProcuringEntityIndex = 'ProcuringEntityIndex';
+SET vProcuringEntityAddress = 'ProcuringEntityStreetAddress';
+SET vProcuringEntityTelephone = 'ProcuringEntityTelephone';
+SET vProcuringEntityEmail = 'ProcuringEntityEmail';
+SET vProcuringEntityFax = 'ProcuringEntityFaxNumber';
+SET vProcuringEntityWebAddress = 'ProcuringEntityUrl';
+SET vProcuringEntityIdName = '[Организатор]'; //procuringEntity_idname
+SET vProcuringEntityOrganisationStatus = 'procuringEntity_organisationStatus';
+SET vProcuringEntityBudgetType = 'procuringEntity_budgetType';
+SET vProcuringEntitySME = 'procuringEntity_SME';
+SET vProcuringEntityIsFilial = 'procuringEntity_isFilial';
+
+SET vTendererId = '[ИНН участника]'; //IDTendererOrig
+SET vTendererCountry = '[Страна участника]'; //TendererCountry
+SET vTendererOKPO = '[ОКПО участника]'; //TendererOkpo
+SET vTendererName = '[Наименование участника]'; //TendererName
+SET vTendererDepartment = '[Ведомство участника]'; //Tenderer_establishment
+SET vTendererBranch = 'TendererBranch';
+SET vTendererBranchDivision = 'TendererBranchDivision';
+SET vTendererRegion = '[Регион участника]'; //TendererRegion
+SET vTendererCity = '[Населенный пункт участника]'; //TendererLocality
+SET vTendererIndex = 'TendererIndex';
+SET vTendererAddress = '[Адрес участника]'; //TendererStreetAddress
+SET vTendererTelephone = 'TendererTelephone';
+SET vTendererEmail = 'TendererEmail';
+SET vTendererFax = 'TendererFaxNumber';
+SET vTendererWebAddress = 'TendererUrl';
+SET vTendererOrganisationStatus = 'tenderer_organisationStatus';
+SET vTendererContactPointName = 'TendererContactPointName';
+SET vTenderer_idplace = 'tenderer_idplace';
+SET vTendererIdName = 'tenderer_idname';
+SET vTendererBudgetType = 'tenderer_budgetType';
+SET vTendererSME = 'tenderer_SME';
+SET vTendererIsFilial = 'tenderer_isFilial';
+
+SET vLotForeignParticipantId = 'ForeignParticipant';
+
+SET vBuyerId = '[Идентификатор заказчика]'; //IDBuyerOrig
+SET vBuyerOKPO = '[ОКПО заказчика]'; //BuyerOkpo
+SET vBuyerCountry = '[Страна заказчика]'; //BuyerCountry
+SET vBuyerName = '[Наименование заказчика]'; //BuyerName
+SET vBuyerDepartment = '[Ведомство заказчика]'; //Buyer_establishment
+SET vBuyerBranch = 'BuyerBranch';
+SET vBuyerBranchDivision = 'BuyerBranchDivision';
+SET vBuyerRegion = '[Регион заказчика]'; //BuyerRegion
+SET vBuyerCity = '[Населенный пункт заказчика]'; //BuyerLocality
+SET vBuyerIndex = 'BuyerIndex';
+SET vBuyerAddress = '[Адрес заказчика]'; //BuyerStreetAddress
+SET vBuyerTelephone = 'BuyerTelephone';
+SET vBuyerEmail = 'BuyerEmail';
+SET vBuyerFax = 'BuyerFaxNumber';
+SET vBuyerWebAddress = 'BuyerUrl';
+SET vBuyerOrganisationStatus = 'buyer_organisationStatus';
+SET vBuyerOnlyNoncompetitive = '[Заказчик только в неконкурентных]'; //buyer_only_nonCompetitive
+SET vBuyerIdName = '[Заказчик]'; //buyer_idname
+SET vBuyerFromCapital = '[Заказчик из столицы]'; //buyer_from_capital
+SET vSmalScaleBuyer = '[Заказчик является субъектом МСП]'; //smalScaleBuyer
+
+SET vSupplierId = '[Идентификатор поставщика]'; //IDSupplierOrig
+SET vSupplierCountry ='[Страна поставщика]'; //SupplierCountry
+SET vSupplierOKPO ='SupplierOkpo';
+SET vSupplierName = '[Наименование поставщика]'; //SupplierName
+SET vSupplierDepartment = '[Ведомство поставщика]'; //Supplier_establishment
+SET vSupplierBranch = 'SupplierBranch';
+SET vSupplierBranchDivision = 'SupplierBranchDivision';
+SET vSupplierRegion = '[Регион поставщика]'; //SupplierRegion
+SET vSupplierCity = '[Населенный пункт поставщика]'; //SupplierLocality
+SET vSupplierIndex = 'SupplierIndex';
+SET vSupplierAddress = '[Адрес поставщика]'; //SupplierStreetAddress
+SET vSupplierTelephone = 'SupplierTelephone';
+SET vSupplierEmail = 'SupplierEmail';
+SET vSupplierFax = 'SupplierFaxNumber';
+SET vSupplierWebAddress = 'SupplierUrl';
+SET vContractForeignSupplierId = 'ForeignSupplier';
+SET vContractForeignPosition = '[Предмет закупки иностранного происхождения]'; //ForeignPosition
+SET vSupplierOnlyNoncompetitive = '[Поставщик только в неконкурентных]'; //supplier_only_nonCompetitive
+SET vSupplierIdName = '[Поставщик]'; //supplier_idname
+SET vSupplier_idplace = 'supplier_idplace';
+SET vSmalScaleSupplier = '[Поставщик является субъектом МСП]'; //smalScaleSupplier
+SET vSupplierFromCapital = 'supplier_from_capital';
+
+SET vWinnerId = '[ИНН победителя]'; //IDWinnerOrig
+SET vWinnerOKPO = 'WinnerOkpo';
+SET vWinnerCountry = '[Страна победителя]'; //WinnerCountry
+SET vWinnerName = '[Наименование победителя]'; //WinnerName
+SET vWinnerDepartment = '[Ведомство победителя]'; //Winner_establishment
+SET vWinnerBranch = 'WinnerBranch';
+SET vWinnerBranchDivision = 'WinnerBranchDivision';
+SET vWinnerRegion = '[Регион победителя]'; //WinnerRegion
+SET vWinnerCity = 'WinnerLocality';
+SET vWinnerIndex = 'WinnerIndex';
+SET vWinnerAddress = 'WinnerStreetAddress';
+SET vWinnerTelephone = 'WinnerTelephone';
+SET vWinnerEmail = 'WinnerEmail';
+SET vWinnerFax = 'WinnerFaxNumber';
+SET vWinnerWebAddress = 'WinnerUrl';
+SET vWinnerOrganisationStatus = 'winner_organisationStatus';
+SET vWinnerIdName = 'winner_idname';
+SET vSmalScaleWinner = 'smalScaleWinner';
+SET vWinnerBudgetType = 'winner_budgetType';
+SET vWinnerSME = 'winner_SME';
+SET vWinnerIsFilial = 'winner_isFilial';
+SET vForeignWinner = 'ForeignWinner';
+
+SET vRepeatedProcedureId = 'relatedProcess_id';
+SET vPreviousProcedureId = 'relatedProcess_identifier';
+
+SET vPriceReductionField = 'price_reduction';
+
+SET vProcedureDurationField = 'procedure_duration';
+SET vTenderingDurationField = 'tendering_duration';
+SET vAwardDurationField = 'award_duration';
+SET vAwardPublicationDurationField = 'awardPublication_duration';
+
+SET vReleaseId = 'IDReleaseOCIDKey';
+SET vReleaseIdOrig = 'IDReleaseOCIDOrig';
+SET vProcuringEntityIsBuyer = '[Организатор является заказчиком]'; //procuringEntityIsBuyer
+
+//====Sighns====
+SET FOREING_PART = '$(vLotForeignParticipantId)={1}'; //sign of a foreign participant
+SET FOREING_SUPL = '$(vContractForeignSupplierId)={1}'; //sign of foreign supplier
+SET NONCOMP = '$(vTenderCompetitive)={0}'; //sign of non-competitive procedure / lot
+SET COMP = '$(vTenderCompetitive)={1;2}'; //sign of competitive procedure / lot
+SET CAPITAL_BUYER = '$(vBuyerFromCapital)={`$(vYESText)`}'; //customer sign from the capital
+SET SMALL_SCALE_SUPL = '$(vSmalScaleSupplier)={`$(vDAText)`}';
+SET UNANSWERED_QUESTION = '$(vEnquiryIsAnswered)={`$(vNOText)`}';
+SET ELECTRONIC_QUESTION = '$(vEnquiryIsElectronic)={1}';
+SET COMPLAINT_PENDING = '$(vComplaintStatus)={pending}';
+SET SMALLSCALE_BUSINESS = '$(vLotForSmallScaleBusiness)={1}';
+SET COMPLETE_LOT = '$(vLotStatus)={complete}'; //sign of successfully completed lot
+SET BIDDER_WINNER = 'bidder_winner={1}'; //winner sign
+SET ETRADE = '$(vTenderProcurementMethodDetails)={eTrade}';
+SET BID_REVOKED = '$(vBidStatus)={withdrawn}';
+SET BID_REJECTED = '$(vBidStatus)={disqualified}';
+SET BID_NONFICT = 'BID_flag={1}';
+SET BIDwPREF = 'bid_with_preference={1}';
+SET FOREING_WIN = '$(vForeignWinner)={1}'; //non-resident winner sign
+SET COMPLETE_TENDER = '$(vTenderStatus)={complete}'; //sign of a successful tender
+SET ETRADE_REQUEST_AUCTION = '$(vTenderProcurementMethodDetails)={eTrade;Request;Auction}'; //3 types for Lot of SMEs
+
+NONFICTIVE_LOT = 'IDLotKey=P()'; //sign of a non-fictitious lot
+//SET BIDDER_SUPPLIER = 'bidderIsSupplier={1}'; //participant-supplier sign
+
+
+//====KPI====
+
+SET PARAMS = (=replace('$1', ';', ',')); 
+
+SET _TENDERS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vTenderId)'&')';
+LET vTendersCount = $(_TENDERS_COUNT_);
+
+SET _RELEASES_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vReleaseId)'&')';
+LET vReleasesCount = $(_RELEASES_COUNT_);
+
+SET _LOTS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vLotId)'&')';
+LET vLotsCount = $(_LOTS_COUNT_);
+
+SET _LOT_AMOUNT_ = 'SUM({<$'&PARAMS&'>} $(vLotValueBYR)'&')';
+LET vLotAmount = $(_LOT_AMOUNT_);
+
+SET _CONTRACTS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vContractId)'&')';
+LET vContractCount = $(_CONTRACTS_COUNT_);
+
+SET _CONTRACT_AMOUNT_ = 'SUM({<$'&PARAMS&'>} $(vContractValueBYR)'&')'; 
+LET vContractAmount = $(_CONTRACT_AMOUNT_);
+
+SET _PRICE_REDUCTION_ = 'SUM({<$'&PARAMS&'>} $(vPriceReductionField) '&')';
+LET vPriceReduction = $(_PRICE_REDUCTION_);
+
+// SET _PRICE_REDUCTION%_ = 'SUM({<$'&PARAMS&',$(ACTIVE_AWARD)>} $(vPriceReductionField)'&')/SUM({<$'&PARAMS&',$(ACTIVE_AWARD)>} $(vLotValue)'&')';
+// LET vPriceReduction% = $(_PRICE_REDUCTION%_);
+
+SET _BUYER_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vBuyerId)'&')';
+LET vBuyersCount = $(_BUYER_COUNT_);
+
+SET _SUPPLIER_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vSupplierId)'&')';
+LET vSuppliersCount = $(_SUPPLIER_COUNT_);
+
+SET _TENDERER_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vTendererId)'&')';
+LET vTenderersCount = $(_TENDERER_COUNT_);
+
+SET _WINNER_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vWinnerId)'&')';
+LET vWinnersCount = $(_WINNER_COUNT_);
+
+SET _PROC_ENTITY_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vProcuringEntityId)'&')';
+LET vProcuringEntitiesCount = $(_PROC_ENTITY_COUNT_);
+
+SET _ENQUIRIES_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vEnquiryId)'&')';
+LET vEnquiriesCount = $(_ENQUIRIES_COUNT_);
+
+SET _AVG_TIME_TOANSWER = 'AVG({<$'&PARAMS&'>} $(vEnquiriesTimeToAnswerField)'&')';
+LET vEnquiriesTimeToAnswer = $(_AVG_TIME_TOANSWER);
+
+SET _COMPLAINTS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vComplaintId)'&')';
+LET vComplaintsCount = $(_COMPLAINTS_COUNT_);
+
+SET _AVG_COMPLAINT_REVIEW = 'AVG({<$'&PARAMS&'>} $(vComplaintTimeToReviewField)'&')';
+LET vComplaintTimeToReview = $(_AVG_COMPLAINT_REVIEW);
+
+
+SET _AVG_PROCEDURE_DURATION_ = 'AVG({<$'&PARAMS&'>} $(vProcedureDurationField)'&')';
+Let vProcedureDuration = $(_AVG_PROCEDURE_DURATION_);
+
+SET _AVG_TENDERING_DURATION_ = 'AVG({<$'&PARAMS&'>} $(vTenderingDurationField)'&')';
+Let vTenderingDuration = $(_AVG_TENDERING_DURATION_);
+
+SET _AVG_AWARD_PERIOD_ = 'AVG({<$'&PARAMS&'>} $(vAwardDurationField)'&')';
+Let vAwardDuration = $(_AVG_AWARD_PERIOD_);
+
+SET _AVG_AWARDPUBLICATION_DURATION_ = 'AVG({<$'&PARAMS&'>} $(vAwardPublicationDurationField)'&')';
+Let vAwardPublicationDuration = $(_AVG_AWARDPUBLICATION_DURATION_);
+
+// SET _AVG_TENDERING_PERIOD_ = 'AVG({<$'&PARAMS&'>} $(vTenderTenderingDurationField)'&')';
+// Let vTenderignPeriodDuration = $(_AVG_TENDERING_PERIOD_);
+
+// SET _AVG_CONTRACTSIGNING_PERIOD_ = 'AVG({<$'&PARAMS&'>} $(vContractSigningDurationField)'&')';
+// Let vContractSigningDuration = $(_AVG_CONTRACTSIGNING_PERIOD_);
+
+// SET _AVG_ENQUIRING_DURATION_ = 'AVG({<$'&PARAMS&'>} $(vEnquiringDurationField)'&')';
+// Let vEnquiringDuration = $(_AVG_ENQUIRING_DURATION_);
+
+
+// SET _AVG_TILLAWARD_PERIOD_ = 'AVG({<$'&PARAMS&'>} $(vLotTillAwardDurationField)'&')';
+// Let vTillAwardDuration = $(_AVG_TILLAWARD_PERIOD_);
+
+// SET _AVG_TILLCONTRACT_PERIOD_ = 'AVG({<$'&PARAMS&'>} $(vLotTillContractDurationField)'&')';
+// Let vTillContractDuration = $(_AVG_TILLCONTRACT_PERIOD_);
+
+SET _BIDS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vBidId)'&')';
+LET vBidsCount = $(_BIDS_COUNT_);
+
+// SET _AWARDS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vAwardId)'&')';
+// LET vAwardsCount = $(_AWARDS_COUNT_);
+
+// SET _ITEMS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vItemId)'&')';
+// LET vItemsCount = $(_ITEMS_COUNT_);
+
+// SET vBidderStatus = 'bidder_status';
+
+SET _CONTRACT_POSITION_AMOUNT_ = 'SUM({<$'&PARAMS&'>} $(vContractPositionValueBYR)'&')'; 
+LET vContractPositionAmount = $(_CONTRACT_POSITION_AMOUNT_);
+
+SET _CONTRACT_POSITION_AMOUNT_INCURR_ = 'SUM({<$'&PARAMS&'>} $(vContractPositionValue)'&')'; 
+LET vContractPositionAmountINCURR = $(_CONTRACT_POSITION_AMOUNT_INCURR_);
+
+SET _REPEATED_PROCEDURE_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vRepeatedProcedureId)'&')';
+LET vRepeatedProcedureCount = $(_REPEATED_PROCEDURE_COUNT_);
+
+SET _ResultProtocol_COUNT_ = 'SUM({<$'&PARAMS&'>} $(vTenderHasResultProtocol)'&')'; 
+LET vResultProtocolCount = $(_ResultProtocol_COUNT_);
+
+SET _OpenBidsProtocol_COUNT_ = 'SUM({<$'&PARAMS&'>} $(vTenderHasOpenBidsProtocol)'&')'; 
+LET vOpenBidsProtocolCount = $(_OpenBidsProtocol_COUNT_);
+
+SET _FirstPartsProtocol_COUNT_ = 'SUM({<$'&PARAMS&'>} $(vTenderHasFirstPartsProtocol)'&')'; 
+LET vFirstPartsProtocolCount = $(_FirstPartsProtocol_COUNT_);
+
+SET _SecondPartsProtocol_COUNT_ = 'SUM({<$'&PARAMS&'>} $(vTenderHasSecondPartsProtocol)'&')'; 
+LET vSecondPartsProtocolCount = $(_SecondPartsProtocol_COUNT_);
+
+SET _AuctionProtocol_COUNT_ = 'SUM({<$'&PARAMS&'>} $(vTenderHasAuctionProtocol)'&')'; 
+LET vAuctionProtocolCount = $(_AuctionProtocol_COUNT_);
+
+//SET vEECList = 'А', 'Количество проведенных процедур закупок', 'Количество процедур, которые не привели  к заключению договора', 'Количество поданных предложений', 'из них:', 'Армения', 'Беларусь', 'Казахстан', 'Кыргызстан', 'Россия', 'Количество предложений не допущенных к определению', 'из них: ', 'Армения ', 'Беларусь ', 'Казахстан ', 'Кыргызстан ', 'Россия ', 'Количество отозванных предложений', 'из них:  ', 'Армения  ', 'Беларусь  ', 'Казахстан  ', 'Кыргызстан  ', 'Россия  ', 'Количество поставщиков', 'из них:   ', 'Армения   ', 'Беларусь   ', 'Казахстан   ', 'Кыргызстан   ', 'Россия   ', '', ' ', 'Стоимость заключенных договоров о закупках', 'из них:    ', 'Армения    ', 'Беларусь    ', 'Казахстан    ', 'Кыргызстан    ', 'Россия    ', 'Контракты по стране происхождения товаров', 'из них:     ', 'Армения     ', 'Беларусь     ', 'Казахстан     ', 'Кыргызстан     ', 'Россия     ', 'по источникам финансирования', 'бюджетные средства', 'иные средства', 'по виду предмета закупки', 'товары', 'работы и услуги';
+
+SET vEECList01_26 = 'А', 'Количество проведенных процедур закупок', 'Количество процедур, которые не привели  к заключению договора', 'Количество поданных предложений', 'из них:', 'Армения', 'Беларусь', 'Казахстан', 'Кыргызстан', 'Россия', 'Количество предложений не допущенных к определению', 'из них: ', 'Армения ', 'Беларусь ', 'Казахстан ', 'Кыргызстан ', 'Россия ', 'Количество отозванных предложений', 'из них:  ', 'Армения  ', 'Беларусь  ', 'Казахстан  ', 'Кыргызстан  ', 'Россия  ', 'Количество поставщиков', 'из них:   ', 'Армения   ', 'Беларусь   ', 'Казахстан   ', 'Кыргызстан   ', 'Россия   ';
+
+SET vEECList27_41 = 'А', 'Стоимость заключенных договоров о закупках', 'из них:    ', 'Армения', 'Беларусь', 'Казахстан', 'Кыргызстан', 'Россия', 'Контракты по стране происхождения товаров', 'из них:     ', 'Армения ', 'Беларусь ', 'Казахстан ', 'Кыргызстан ', 'Россия ', 'по источникам финансирования', 'бюджетные средства', 'иные средства', 'по виду предмета закупки', 'товары', 'работы и услуги';
+
+/* 6. Multilang */
+
+//====Field names of multilingual dictionary
+FieldNamesTable:
+NoConcatenate
+LOAD
+    "Index",
+    Reference,
+    Ru,
+    En
+FROM [$(DIC_QVD_PATH)Multilang_FieldNames.qvd] (qvd);
+
+// Names and labels for internal KPI tables and dimensions
+InnerDictionaries:
+LOAD
+    "Index",
+    Reference,
+    Ru,
+    En,
+    attributeOf
+FROM [$(DIC_QVD_PATH)Multilang_Dictionaries.qvd] (qvd);
+
+// List of multilingual interface labels
+Translations:
+NoConcatenate
+Load     
+	"Index",
+    Reference,
+    Ru,
+    En
+From [$(DIC_QVD_PATH)Multilang_Labels.qvd] (qvd);
+
+Language:
+CROSSTABLE (Language, Translation) LOAD 
+	 Index, 
+     Ru,
+     En
+RESIDENT Translations;
+
+LanguageList:
+LOAD Distinct
+	 Language as _Language
+RESIDENT Language
+WHERE Language > 0;
+
+Left join(LanguageList)
+LOAD
+    Index as [_Language],
+    Ru as [Index_]
+Resident InnerDictionaries
+Where attributeOf like 'LanguageList';
+
+DROP TABLE Translations;
+
+// Variables for interface localization
+LET T = replace('_T_$1_@(=FirstSortedValue(distinct _Language, Index_))', '@', '$');
+
+LET vTranslationsRows = NoOfRows('Language');
+
+FOR i = 0 TO vTranslationsRows - 1 
+	LET _vTranslationId = Peek('Index', i, 'Language');
+	LET _vTranslation = Peek('Translation', i, 'Language');
+	LET _vTrLanguage = Peek('Language', i, 'Language');
+	
+	LET _vTrName = '_T_$(_vTranslationId)_$(_vTrLanguage)';
+	LET $(_vTrName) = '$(_vTranslation)';
+	
+	LET _vTranslationId =;
+	LET _vTranslation =;
+	LET _vTrLanguage =;
+	LET _vTrName =;
+NEXT
+
+DROP Table Language;
+
+// Variables for localizing sheet descriptions
+Translations:
+Load 
+	 "Index",
+     Ru,
+     En
+From [$(DIC_QVD_PATH)TranslationsHelp.qvd] (qvd);
+
+Language:
+CROSSTABLE (Language, Translation) LOAD 
+	 Index, 
+     Ru,
+     En
+RESIDENT Translations;
+
+// Help Localization Variables
+LET H = replace('_H_$1_@(=FirstSortedValue(_Language, Index_))', '@', '$');
+
+LET vTranslationsRows = NoOfRows('Language');
+
+FOR i = 0 TO vTranslationsRows - 1 
+	LET _vTranslationId = Peek('Index', i, 'Language');
+	LET _vTranslation = Peek('Translation', i, 'Language');
+	LET _vTrLanguage = Peek('Language', i, 'Language');
+	
+	LET _vTrName = '_H_$(_vTranslationId)_$(_vTrLanguage)';
+	LET $(_vTrName) = '$(_vTranslation)';
+	
+	LET _vTranslationId =;
+	LET _vTranslation =;
+	LET _vTrLanguage =;
+	LET _vTrName =;
+NEXT
+
+DROP Tables Translations;
+
+/* 7. Calendars */
+
+// Date Periods for Tenders
+MinMaxDates:
+LOAD 
+	Min(tender_dateTmp) as MinDate,
+	Max(tender_dateTmp) as MaxDate;	
+
+LOAD Num(Fieldvalue('tender_datePublished',RecNo())) as tender_dateTmp 
+AUTOGENERATE FieldValueCount('tender_datePublished'); 
+
+LET vMinDate = Date(Peek('MinDate', -1, 'MinMaxDates'));
+LET vMaxDate = Date(Peek('MaxDate', -1, 'MinMaxDates'));
+
+DROP TABLE MinMaxDates;
+
+SET MonthNames='$(_T_63_Ru)';
+
+FullCalendar:
+Load
+	 "tender_datePublished",
+     "tender_datePublished" as Date,
+     Year(tender_datePublished) as Year,
+     Dual(Year(tender_datePublished)&'-K'&Num(Ceil(Num(Month(tender_datePublished))/3)),QuarterStart(tender_datePublished)) AS [Year-QuarterRu],
+     Dual(Year(tender_datePublished)&'-'&Month(tender_datePublished), (Year(tender_datePublished)-1) * 12 + Month(tender_datePublished)) as [Year-MonthRu],
+     Month(tender_datePublished) as [MonthRu]
+;
+LOAD Date('$(vMinDate)' + RecNo() - 1) as "tender_datePublished"
+AutoGenerate vMaxDate - vMinDate + 1;    
+
+SET MonthNames='$(_T_63_En)';
+
+Left Join (FullCalendar)
+Load
+	 Date,
+     Dual(Year(tender_datePublished)&'-Q'&Num(Ceil(Num(Month(tender_datePublished))/3)),QuarterStart(tender_datePublished)) AS [Year-QuarterEn],
+     Dual(Year(tender_datePublished)&'-'&Month(tender_datePublished), (Year(tender_datePublished)-1) * 12 + Month(tender_datePublished)) as [Year-MonthEn],
+     Month(tender_datePublished) as [MonthEn]
+Resident FullCalendar;   
+
+// Date Periods for Contracts
+MinMaxDates:
+LOAD 
+	Min(contract_dateTmp ) as MinDate,
+	Max(contract_dateTmp ) as MaxDate;	
+
+LOAD Num(Fieldvalue('contract_dateCreated',RecNo())) as contract_dateTmp 
+AUTOGENERATE FieldValueCount('contract_dateCreated'); 
+
+LET vMinDate = Date(Peek('MinDate', -1, 'MinMaxDates'));
+LET vMaxDate = Date(Peek('MaxDate', -1, 'MinMaxDates'));
+
+DROP TABLE MinMaxDates;
+
+SET MonthNames='$(_T_63_Ru)';
+
+ContractFullCalendar:
+Load
+	 "contract_dateCreated",
+     "contract_dateCreated" as [Contract Date],
+     Year(contract_dateCreated) as [Contract Year],
+     Dual(Year(contract_dateCreated)&'-K'&Num(Ceil(Num(Month(contract_dateCreated))/3)),QuarterStart(contract_dateCreated)) AS [ContractYear-QuarterRu],
+     Dual(Year(contract_dateCreated)&'-'&Month(contract_dateCreated), (Year(contract_dateCreated)-1) * 12 + Month(contract_dateCreated)) as [ContractYear-MonthRu],
+     Month(contract_dateCreated) as [Contract MonthRu]
+;
+LOAD Date('$(vMinDate)' + RecNo() - 1) as "contract_dateCreated"
+AutoGenerate vMaxDate - vMinDate + 1;    
+
+SET MonthNames='$(_T_63_En)';
+
+Left Join (ContractFullCalendar)
+Load
+	 [Contract Date],
+     Dual(Year(contract_dateCreated)&'-Q'&Num(Ceil(Num(Month(contract_dateCreated))/3)),QuarterStart(contract_dateCreated)) AS [ContractYear-QuarterEn],
+     Dual(Year(contract_dateCreated)&'-'&Month(contract_dateCreated), (Year(contract_dateCreated)-1) * 12 + Month(contract_dateCreated)) as [ContractYear-MonthEn],
+     Month(contract_dateCreated) as [Contract MonthEn]
+Resident ContractFullCalendar;
+
+/* 8. Translate */
+
+FieldsTranslateTable:
+Mapping
+LOAD
+    F1,
+	F2
+FROM [$(DIC_QVD_PATH)FieldsTranslateTable.qvd] (qvd);
+
+rename fields using 'FieldsTranslateTable';
+
+/* 9. Interface/Trans Tables */
+
+//====KPI Tables====
+
+// Main sheet
+KPIList:
+Load
+	 _KPINo, 
+     replace(_Exp, '@', '$') as _Exp
+;
+Load * Inline [
+_KPINo, 	_Exp
+1,			@(vLotsCount(@(COMP)))
+2,			@(vLotAmount(@(COMP)))
+];
+
+
+// Procedure duration
+KPIPS:
+Load 
+	 _KPINoPS, 
+     replace(_ExpPS, '@', '$') as _ExpPS
+;
+Load * Inline [
+_KPINoPS, 	_ExpPS
+1,			@(vProcedureDuration(@(COMPLETE_TENDER);@(COMP)))
+2,			@(vTenderingDuration(@(COMPLETE_TENDER);@(COMP)))
+3,			@(vAwardDuration(@(COMPLETE_TENDER);@(COMP)))
+4,			@(vAwardPublicationDuration(@(COMPLETE_TENDER);@(COMP)))
+];
+
+
+// Lots of SMEs
+// Only at competitive COMP. Because ETRADE, REQUEST, AUCTION are competitive - COMP removed
+KPISSB:
+Load 
+	 _KPINoSSB, 
+     replace(_ExpSSB, '@', '$') as _ExpSSB
+;
+Load * Inline [
+_KPINoSSB| 	_ExpSSB
+1|			@(vLotsCount(@(ETRADE_REQUEST_AUCTION);@(SMALLSCALE_BUSINESS)))
+2|			NUM(@(vLotsCount(@(ETRADE_REQUEST_AUCTION);@(SMALLSCALE_BUSINESS)))/@(vLotsCount(@(ETRADE_REQUEST_AUCTION))), '# ##0,00%')
+](delimiter is '|');
+
+
+// Questions
+KPIEQ:
+Load 
+	 _KPINoEQ, 
+     replace(_ExpEQ, '@', '$') as _ExpEQ
+;
+Load * Inline [
+_KPINoEQ| 	_ExpEQ
+1|			NUM(@(vEnquiriesCount(@(vEnquiryId)=P();@(COMP))), '# ##0')
+2|			NUM(@(vEnquiriesCount(@(UNANSWERED_QUESTION);@(COMP)))/@(vEnquiriesCount(@(vEnquiryId)=P();@(COMP))), '# ##0,00%')
+3|			NUM(@(vEnquiriesTimeToAnswer(@(vEnquiryId)=P();@(COMP))), '# ##0,00')
+]
+(delimiter is '|');
+
+// Complaints
+KPICMP:
+Load 
+	 _KPINoCMP, 
+     replace(_ExpCMP, '@', '$') as _ExpCMP
+;
+Load * Inline [
+_KPINoCMP, 	_ExpCMP
+1,			@(vComplaintsCount)
+];
+
+
+// Repeated procedures
+KPIRP:
+Load 
+	 _KPINoRP, 
+     replace(_ExpRP, '@', '$') as _ExpRP
+;
+Load * Inline [
+_KPINoRP| 	_ExpRP
+1|			@(vLotsCount(@(COMP);@(vRepeatedProcedureId)=P()))
+2|			@(vLotsCount(@(COMP);@(vRepeatedProcedureId)=P()))/@(vRepeatedProcedureCount(@(vRepeatedProcedureId)=P();@(COMP)))
+](delimiter is '|');
+
+// Competition
+KPICMPT:
+Load 
+	 _KPINoCMPT, 
+     replace(_ExpCMPT, '@', '$') as _ExpCMPT
+;
+Load * Inline [
+_KPINoCMPT| 	_ExpCMPT
+1|			NUM(@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_NONFICT)))/@(vLotsCount(@(COMPLETE_LOT);@(ETRADE))), '# ##0,00')
+2|			NUM(@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_REVOKED)))/@(vLotsCount(@(COMPLETE_LOT);@(ETRADE))), '# ##0,00')
+3|			NUM(@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_REJECTED)))/@(vLotsCount(@(COMPLETE_LOT);@(ETRADE))), '# ##0,00')
+4|			NUM(@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_REVOKED)))/@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_NONFICT))), '# ##0,00%')
+5|			NUM(@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_REJECTED)))/@(vBidsCount(@(COMPLETE_LOT);@(ETRADE);@(BID_NONFICT))), '# ##0,00%')
+](delimiter is '|');
+
+// Preferences
+KPIPREF:
+Load 
+	 _KPINoPREF, 
+     replace(_ExpPREF, '@', '$') as _ExpPREF
+;
+Load * Inline [
+_KPINoPREF| 	_ExpPREF
+1|			NUM(@(vBidsCount(@(ETRADE);@(BID_NONFICT))), '# ##0')
+2|			NUM(@(vBidsCount(@(ETRADE);@(BIDwPREF)))/@(vLotsCount(@(ETRADE))), '# ##0,00')
+](delimiter is '|');
+
+// Procedure Stages
+ProcedureStage:
+Load * Inline [
+ProcedureStageRu| 	ProcedureStageEn
+$(_T_226_Ru)| $(_T_226_En)
+$(_T_227_Ru)| $(_T_227_En)
+$(_T_228_Ru)| $(_T_228_En)
+](delimiter is '|');
+
+// Types of Organizations
+KPIOT:
+Load
+	 _KPINoOT, 
+     replace(_ExpOT, '@', '$') as _ExpOT,
+     replace(_ExpOT_status, '@', '$') as _ExpOT_status,
+     replace(_ExpOT_dept, '@', '$') as _ExpOT_dept,
+     replace(_ExpOT_budgetType, '@', '$') as _ExpOT_budgetType,
+     replace(_ExpOT_SME, '@', '$') as _ExpOT_SME,
+     replace(_ExpOT_budget, '@', '$') as _ExpOT_budget,
+     replace(_ExpOT_filial, '@', '$') as _ExpOT_filial,
+     replace(_ExpOT_Id, '@', '$') as _ExpOT_Id,
+     _ExpOT_type
+;
+Load * Inline [
+_KPINoOT,	_ExpOT,							_ExpOT_status,	_ExpOT_dept,					_ExpOT_budgetType,				_ExpOT_SME,				_ExpOT_budget,																			_ExpOT_filial,															_ExpOT_Id,				_ExpOT_type
+1,	@(vProcuringEntitiesCount(@(COMP))),	@(=@(T(296))),	@(vProcuringEntityDepartment),	@(vProcuringEntityBudgetType),	@(vProcuringEntitySME),	@(vProcuringEntitiesCount(@(COMP);@(vProcuringEntityBudgetType)={financedByBudget})),	@(vProcuringEntitiesCount(@(COMP);@(vProcuringEntityIsFilial)={1})),	@(vProcuringEntityId),	Ведомственная принадлежность организатора
+2,	@(vTenderersCount(@(COMP))),			@(=@(T(136))),	@(vTendererDepartment),			@(vTendererBudgetType),			@(vTendererSME),		@(vTenderersCount(@(COMP);@(vTendererBudgetType)={financedByBudget})),					@(vTenderersCount(@(COMP);@(vTendererIsFilial)={1})),					@(vTendererId),			Ведомство участника
+3,	@(vWinnersCount(@(COMP))),				@(=@(T(297))),	@(vWinnerDepartment),			@(vWinnerBudgetType),			@(vWinnerSME),			@(vWinnersCount(@(COMP);@(vWinnerBudgetType)={financedByBudget})),						@(vWinnersCount(@(COMP);@(vWinnerIsFilial)={1})),						@(vWinnerId),			Ведомство победителя
+];
+
+// For constructor
+KDIM:
+Load * Inline [
+_DIM
+1
+2
+3
+4
+5
+6
+7
+8
+9
+A
+B
+C
+D
+E
+F
+G
+H
+I
+J
+K
+L
+M
+N
+O
+P
+Q
+R
+S
+T
+U
+];
+
+KMES:
+Load * Inline [
+_MES
+1
+2
+3
+4
+5
+6
+7
+8
+9
+A
+B
+C
+D
+E
+F
+G
+H
+I
+];
+
+// Adding fields with KPI labels
+CALL translationsJoinInners('KPIList', '_KPINo'); // Main Sheet
+CALL translationsJoinInners('KPIPS', '_KPINoPS'); //PS = Procedures stages
+CALL translationsJoinInners('KPISSB', '_KPINoSSB'); //SSB = Small Scale Business
+
+CALL translationsJoinInners('KPIEQ', '_KPINoEQ'); //EQ = Enquiries
+CALL translationsJoinInners('KPICMP', '_KPINoCMP'); //CMP = Complaints
+
+CALL translationsJoinInners('KPIRP', '_KPINoRP'); //RP = Repeated procedures
+CALL translationsJoinInners('KPICMPT', '_KPINoCMPT'); //CMPT = Competition
+CALL translationsJoinInners('KPIPREF', '_KPINoPREF'); //PREF = Preferences
+
+CALL translationsJoinInners('KPIOT', '_KPINoOT'); //OT = Organisations Type
+
+
+CALL translationsNewTable('TenderStatus', 0, '$(vTenderStatus)');
+CALL translationsNewTable('ProcurementMethod', 0, 'tender_procurementMethod');
+CALL translationsNewTable('ProcurementMethodDetails', 0, 'tender_procurementMethodDetails');
+
+CALL translationsNewTable('LotStatus', 0, 'lot_status');
+CALL translationsNewTable('BidStatus', 0, 'bid_status');
+CALL translationsNewTable('ComplaintStatus', 0, 'complaint_status');
+CALL translationsNewTable('NonCompetitiveBuyer', 0, '$(vBuyerOnlyNoncompetitive)');
+CALL translationsNewTable('NonCompetitiveSupplier', 0, '$(vSupplierOnlyNoncompetitive)');
+CALL translationsNewTable('ForeignParticipant', 0, '$(vLotForeignParticipantId)');
+CALL translationsNewTable('ForeignWinner', 0, '$(vForeignWinner)');
+
+
+CALL translationsNewTable('UnansweredQuestions', 'Enquiries', '$(vEnquiryIsAnswered)');
+CALL translationsNewTable('ElectronicEnquiries', 'Enquiries', '$(vEnquiryIsElectronic)');
+
+CALL translationsNewTable('ComplaintWithResolution', 'Complaints', '$(vComplaintWithResolution)');
+
+CALL translationsNewTable('Source', 0, '$(vTenderOperatorSite)');
+
+CALL translationsNewTable('BuyerBudgetType', 0, 'buyer_budgetType');
+
+CALL translationsNewTable('BidderBudgetType', 0, 'tenderer_budgetType');
+
+CALL translationsNewTable('LotWinner', 'Bids', 'bidder_winner');
+CALL translationsNewTable('LotGSW', 0, '$(vLotGSW)');
+CALL translationsNewTable('LotSmallScaleBusiness', 'Lots', '$(vLotForSmallScaleBusiness)');
+CALL translationsNewTable('ContractStatus', 0, 'contract_status');
+CALL translationsNewTable('BuyerOrganisationStatus', 0, '$(vBuyerOrganisationStatus)');
+CALL translationsNewTable('BidderOrganisationStatus', 0, '$(vTendererOrganisationStatus)');
+CALL translationsNewTable('ProcuringEntityOrganisationStatus', 0, '$(vProcuringEntityOrganisationStatus)');
+CALL translationsNewTable('WinnerOrganisationStatus', 0, '$(vWinnerOrganisationStatus)');
+
+CALL translationsNewTable('ErrorType', 0, 'error_type');
+CALL translationsNewTable('TenderFunds',0,'$(vTenderFunds)');
+CALL translationsNewTable('TenderHolder',0,'$(vTenderHolder)');
+CALL translationsNewTable('Competitive', 'Tenders', 'tender_is_competitive');
+CALL translationsNewTable('GSW', 0, '$(vGSW)');
+
+CALL translationsJoinInners('KDIM', '_DIM');
+CALL translationsJoinInners('KMES', '_MES');
+
+//Finalize
+Drop tables FieldNamesTable, InnerDictionaries;
+
+SET NumConvertRu = "Pick(RangeSum(Floor(LOG10($1)),1), NUM($1, '# ##0'), NUM($1, '# ##0'), NUM($1, '# ##0'), NUM($1/1000, '# ##0,00 $(_T_56_Ru)', ',', ' '), NUM($1/1000, '# ##0,00 $(_T_56_Ru)', ',', ' '), NUM($1/1000, '# ##0,00 $(_T_56_Ru)', ',', ' '), NUM($1/1000000, '# ##0,00 $(_T_57_Ru)', ',', ' '), NUM($1/1000000, '# ##0,00 $(_T_57_Ru)', ',', ' '), NUM($1/1000000, '# ##0,00 $(_T_57_Ru)', ',', ' '), NUM($1/1000000000, '# ##0,00 $(_T_58_Ru)', ',', ' '), NUM($1/1000000000, '# ##0,00 $(_T_58_Ru)', ',', ' '), NUM($1/1000000000, '# ##0,00 $(_T_58_Ru)', ',', ' '), NUM($1/1000000000000, '# ##0,00 $(_T_59_Ru)', ',', ' '), NUM($1/1000000000000, '# ##0,00 $(_T_59_Ru)', ',', ' '),  NUM($1/1000000000000, '# ##0,00 $(_T_59_Ru)', ',', ' '))";
+SET NumConvertEn = "Pick(RangeSum(Floor(LOG10($1)),1), NUM($1, '# ##0'), NUM($1, '# ##0'), NUM($1, '# ##0'), NUM($1/1000, '# ##0,00$(_T_56_En)', ',', ' '), NUM($1/1000, '# ##0,00$(_T_56_En)', ',', ' '), NUM($1/1000, '# ##0,00$(_T_56_En)', ',', ' '), NUM($1/1000000, '# ##0,00$(_T_57_En)', ',', ' '), NUM($1/1000000, '# ##0,0$(_T_57_En)', ',', ' '), NUM($1/1000000, '# ##0,00$(_T_57_En)', ',', ' '), NUM($1/1000000000, '# ##0,00$(_T_58_En)', ',', ' '), NUM($1/1000000000, '# ##0,00$(_T_58_En)', ',', ' '), NUM($1/1000000000, '# ##0,00$(_T_58_En)', ',', ' '), NUM($1/1000000000000, '# ##0,00$(_T_59_En)', ',', ' '), NUM($1/1000000000000, '# ##0,00$(_T_59_En)', ',', ' '), NUM($1/1000000000000, '# ##0,00$(_T_59_En)', ',', ' '))";
+
+/* 10. Validator */
+
+TenderError_tmp:
+LOAD * Inline [
+IDReleaseOCIDKey_, Quality_, error_type
+];
+
+// Negative duration of procedures
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'NegativeProcedureDuration' as error_type
+resident Tenders
+WHERE procedure_duration < 0;
+
+// Negative duration of clarification and submission period
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'NegativeTenderingDuration' as error_type
+resident Tenders
+WHERE tendering_duration < 0;
+
+// Negative duration of the decision on the proposal
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'NegativeAwardDuration' as error_type
+resident Tenders
+WHERE award_duration < 0;
+
+// Negative duration of publication of the decision
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'NegativeAwardPublicationDuration' as error_type
+resident Tenders
+WHERE awardPublication_duration < 0;
+
+// Date of tender publication until 2013-01-01
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'tender.datePublished < "2013-01-01"' as error_type
+resident Tenders
+where tender_date_timePublished < '$(vFirstDate)' or isnull(tender_date_timePublished);
+
+// Date of publication of the contract until 2013-01-01
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'contracts.dateCreated < "2013-01-01"' as error_type
+resident Contracts
+where contract_dateTimeCreated < '$(vFirstDate)' or isnull(contract_dateTimeCreated);
+
+Releases_tmp:
+NoConcatenate
+load distinct IDReleaseOCIDKey
+resident Releases;
+
+left join (Releases_tmp)
+load distinct IDReleaseOCIDKey,
+	IDLotKey,
+    lot_status
+resident Lots;
+
+left join (Releases_tmp)
+load distinct IDReleaseOCIDKey,
+	1 as NONCOMP //
+resident Tenders
+where tender_procurementMethodDetails = 'singleSource';
+
+// No lots or lot status
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    if(isnull(IDLotKey),'required.lots','required.lot_status') as error_type
+resident Releases_tmp
+where isnull(NONCOMP) AND ( isnull(IDLotKey) or isnull(lot_status) );
+
+drop fields IDLotKey,lot_status from Releases_tmp;
+
+left join (Releases_tmp)
+load distinct IDReleaseOCIDKey,
+	IDReleaseOCIDKey&'|'&IDTenderOrig as IDTenderKey,
+    tender_status
+resident Tenders;
+
+// No tender or tender status
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    if(isnull(IDTenderKey),'required.tenders','required.tender_status') as error_type
+resident Releases_tmp
+where isnull(IDTenderKey) or isnull(tender_status);
+
+drop table Releases_tmp;
+
+// Missing organizer
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'required.ProcuringEntity' as error_type
+resident Tenders
+WHERE isnull($(vProcuringEntityId));
+
+// Missing contracts.items
+Contracts_tmp:
+NoConcatenate
+load distinct IDReleaseOCIDKey,
+	IDContractKey
+resident Contracts;
+
+left join (Contracts_tmp)
+LOAD IDContractKey,
+	contract_item_id
+resident ContractItems;
+
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    'required.contract_item' as error_type
+resident Contracts_tmp
+WHERE isnull(contract_item_id);
+
+drop table Contracts_tmp;
+
+// using internal validator
+concatenate (TenderError_tmp)
+load distinct IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	0 AS Quality_,
+    failed_rule_id as error_type
+resident FailedRules
+WHERE match(failed_rule_id,
+			'required.$.tender',
+            'required.$.tender.datePublished',
+            'failed.$.[?($.tender.datePublished === "1970-01-01T00:00:00+03:00")]',
+            'required.$.tender.status',
+            'required.$.tender.procurementMethodDetails',
+            'required.$.tender.holder',
+            'required.$.tender.tenderPeriod',
+            'required.$.tender.tenderPeriod.endDate',
+            'failed.$.[?($.tender.tenderPeriod.endDate === "1970-01-01T00:00:00+03:00")]',
+            'required.$.awards',
+            'unique.$.awards[*].id',
+            'required.$.awards[*].dateCreated',
+            'failed.$.[?("1970-01-01T00:00:00+03:00" in $.awards[*].dateCreated)]',
+            'required.$.awards[*].date',
+            'failed.$.[?("1970-01-01T00:00:00+03:00" in $.awards[*].date)]',
+            'required.$.awards[*].winners',
+            'required.$.tender.lots',
+            'required.$.tender.lots[*].status',
+//            'required.$.bids',
+            'required.$.bids.details[*].relatedLot',
+            'required.$.tender.etpNum',
+            'required.$.contracts[*].date',
+            'required.$.contracts[*].dateCreated',
+            'required.$.contracts[*].dateSigned',
+            'required.$.contracts[*].status',
+            'in.$.contracts[*].funds',
+            'empty.$.contracts[?(@.suppliers.length()>1)]',
+            'required.$.contracts[*].items',
+			'required.$.tender.items',
+			'required.$.tender.items[*].relatedLot',
+            'in.procuringEntity.$.parties[*].roles[*]'
+            )
+;
+
+//GOODTENDERS
+concatenate (TenderError_tmp)
+load IDReleaseOCIDKey as IDReleaseOCIDKey_,
+	1 AS Quality_
+resident Releases
+Where not Exists(IDReleaseOCIDKey_, IDReleaseOCIDKey);
+
+TenderQuality:
+NoConcatenate
+load IDReleaseOCIDKey_ as IDReleaseOCIDKey,
+	IF(Quality_ = 1,DUAL('$(vYESText)',1),DUAL('$(vNOText)',0)) as [Valid Tenders], //[Quality_] as [Quality], 
+    error_type
+resident TenderError_tmp;
+
+drop table TenderError_tmp;
+
+exit script;

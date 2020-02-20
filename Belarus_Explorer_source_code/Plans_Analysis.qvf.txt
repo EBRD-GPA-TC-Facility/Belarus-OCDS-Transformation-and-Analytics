@@ -1,0 +1,808 @@
+SET ThousandSep=' ';
+SET DecimalSep=',';
+SET MoneyThousandSep=' ';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='# ##0,00 ₴;-# ##0,00 ₴';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD.MM.YYYY';
+SET TimestampFormat='DD.MM.YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='uk-UA';
+SET CreateSearchIndexOnReload=1;  //Change!!!
+SET MonthNames='січ.;лют.;бер.;квіт.;трав.;черв.;лип.;серп.;вер.;жовт.;лист.;груд.';
+SET LongMonthNames='січень;лютий;березень;квітень;травень;червень;липень;серпень;вересень;жовтень;листопад;грудень';
+SET DayNames='пн;вт;ср;чт;пт;сб;нд';
+SET LongDayNames='понеділок;вівторок;середа;четвер;пʼятниця;субота;неділя';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+SET DISABLE_INSIGHTS = 1;
+
+SET HidePrefix = '_';
+
+SET vLocalVal = 'BYN';
+SET vBYN_symbol = 'Br';
+
+SET DIC_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Plans/02_QVD_DB/01_Dictionary/';
+SET TRN_QVD_PATH = 'lib://OCDSBYData/01_DataBase_Plans/02_QVD_DB/02_Transaction/';
+
+SET FILES_PATH = 'lib://OCDSBYData/01_DataBase_Plans/01_DataFiles/';
+SET LOCAL_FILES_PATH = 'lib://OCDSBYData/01_DataBase_Plans/03_LocalFiles/';
+
+
+Set vPrefix = '_';
+SET Lan1Name = 'Ru';
+SET Lan2Name = 'En';
+
+
+SET vMaxDimensions = 4;
+SET vMaxMeasures = 4;
+
+SET vYESText = 'ДА(YES)';
+SET vNOText = 'НЕТ(NO)';
+
+
+LET vBeginDate = Makedate(1970,1,1);
+LET vFirstDate = Makedate(2013,1,1);
+
+/* 0. Store dictionaries */
+
+// The section can be moved to the end of the download queue without additional settings and changes.
+
+Multilang_Dictionaries:
+NoConcatenate
+LOAD
+    F1 as Index,
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En,
+    F5 as attributeOf
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=2038448621')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_Dictionaries into [$(DIC_QVD_PATH)/Multilang_Dictionaries.qvd] (qvd);
+Drop table Multilang_Dictionaries;
+
+Multilang_FieldNames:
+NoConcatenate
+LOAD
+    F1 as Index,
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=135113094')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_FieldNames into [$(DIC_QVD_PATH)/Multilang_FieldNames.qvd] (qvd);
+Drop Table Multilang_FieldNames;
+
+Multilang_Labels:
+NoConcatenate
+LOAD
+    F1 as "Index",
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=739052023')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store Multilang_Labels into [$(DIC_QVD_PATH)/Multilang_Labels.qvd] (qvd);
+Drop Table Multilang_Labels;
+
+FieldsTranslateTable:
+NoConcatenate
+LOAD
+    F1,
+	F2
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/d/*/gviz/tq?tqx=out:html&tq&gid=1162842330')
+Where F1 <> 'IN' and Len(F1)>0;
+;
+
+Store FieldsTranslateTable into [$(DIC_QVD_PATH)/FieldsTranslateTable.qvd] (qvd);
+Drop Table FieldsTranslateTable;
+
+// Descriptions of sheets and objects
+TranslationsHelp:
+NoConcatenate
+LOAD
+    F1 as "Index",
+    F2 as Reference,
+    F3 as Ru,
+    F4 as En
+FROM [lib://OCDSBY_dictionaries]
+(html, utf8, embedded labels, table is @1, url is 'https://docs.google.com/spreadsheets/u/1/d/*/gviz/tq?tqx=out:html&tq&gid=184360484')
+Where F1 <> 'Index' and Len(F1)>0;
+
+Store TranslationsHelp into [$(DIC_QVD_PATH)/TranslationsHelp.qvd] (qvd);
+Drop Table TranslationsHelp;
+
+/* 0. Procedures */
+
+// Number rounding
+SET vRound2 = Round(Floor($1, 0.001), 0.01);
+
+// Trimming data on the main table and building a hierarchy
+SUB RHierarchy(BaseTable, HTable, id, parent_id, name, name_pref)
+// BaseTable - cropping table
+// HTable - base table on which the hierarchy is built
+// id, parent_id, name - hierarchy fields
+// name_pref - new fields suffix
+	// Trim dictionary
+	BelongTo:
+	NoConcatenate
+	HierarchyBelongsTo($(id), $(parent_id), $(name), AncestorID, AncestorName)
+	LOAD
+		$(id), 
+		$(parent_id), 
+		$(name)
+	Resident $(HTable);
+	
+	BelongTo2:
+//	Left Keep ($(BaseTable)) 
+	LOAD
+		$(id) as [$(name_pref)$(id)],
+		AncestorID
+	Resident BelongTo;
+	
+	DROP Table BelongTo;
+	
+	BelongTo:
+	Right Keep ($(HTable)) 
+	LOAD	
+		AncestorID as $(id)
+	Resident BelongTo2;
+	
+	Drop Tables BelongTo2, BelongTo;
+		
+	$(HTable)Hierarchy:
+	Hierarchy([$(name_pref)$(id)], [$(name_pref)$(parent_id)], [$(name_pref)$(name)], [$(name_pref)$(name)_parent], [$(name_pref)$(name)], Path$(name_pref)$(name), '\', $(name_pref)$(name)_Depth)
+	LOAD
+		 $(id) as [$(name_pref)$(id)],
+		 $(parent_id) as [$(name_pref)$(parent_id)],
+		 $(name) as [$(name_pref)$(name)]
+	Resident $(HTable); 
+	
+ENDSUB
+
+
+//Procedures for translating application fields
+
+SUB translationsJoin (tableName, keyField)
+
+  FieldNames_tmp:
+  NoConcatenate
+  Load 
+      "Index",
+      [$(Lan1Name)],
+      [$(Lan2Name)]
+  Resident FieldNamesTable
+  where Index like '$(tableName)';
+  
+  TRACE $(tableName);
+
+  Let vLan1FieldName = Peek('$(Lan1Name)', -1, 'FieldNames_tmp');
+  Let vLan2FieldName = Peek('$(Lan2Name)', -1, 'FieldNames_tmp');
+  Let vLan3FieldName = Peek('$(Lan3Name)', -1, 'FieldNames_tmp');
+
+  left join("$(tableName)")
+  Load Index as "$(keyField)",
+       [$(Lan1Name)] as "$(vLan1FieldName)",
+       [$(Lan2Name)] as "$(vLan2FieldName)"
+  Resident InnerDictionaries
+  where attributeOf like '$(tableName)';
+
+  drop table FieldNames_tmp;
+
+END SUB
+
+
+SUB translationsNewTable (newTableName, existingTableName, keyField)
+// 0 - without KEEP
+  FieldNames_tmp:
+  NoConcatenate
+  Load 
+      "Index",
+      [$(Lan1Name)],
+      [$(Lan2Name)]
+  Resident FieldNamesTable
+  where Index like '$(newTableName)';
+  
+  TRACE $(tableName);
+
+  Let vLan1FieldName = Peek('$(Lan1Name)', -1, 'FieldNames_tmp');
+  Let vLan2FieldName = Peek('$(Lan2Name)', -1, 'FieldNames_tmp');
+  Let vLan3FieldName = Peek('$(Lan3Name)', -1, 'FieldNames_tmp');
+
+  IF existingTableName <> 0 THEN
+    [$(newTableName)]:
+    left keep("$(existingTableName)")
+    Load 
+        "Index" as $(keyField),
+        [$(Lan1Name)] as [$(vLan1FieldName)],
+        [$(Lan2Name)] as [$(vLan2FieldName)]
+    Resident InnerDictionaries
+    where attributeOf like '$(newTableName)';
+    
+    ELSEIF existingTableName = 0 THEN
+    	[$(newTableName)]:
+    	Load 
+            "Index" as $(keyField),
+            [$(Lan1Name)] as [$(vLan1FieldName)],
+            [$(Lan2Name)] as [$(vLan2FieldName)]
+    	Resident InnerDictionaries
+    	where attributeOf like '$(newTableName)';
+   ENDIF
+
+  drop table FieldNames_tmp;
+
+END SUB
+
+SUB translationsJoinInners(tableName, keyField)
+
+  JoinTypes:
+  Load Distinct Reference as joinType
+  Resident InnerDictionaries
+  where attributeOf like '$(tableName)';
+
+  For each vJoinType in FieldValueList('joinType')
+
+    left join("$(tableName)")
+    LOAD Index as "$(keyField)",
+         [$(Lan1Name)] as "$(vPrefix)$(tableName)$(vJoinType)$(Lan1Name)",
+         [$(Lan2Name)] as "$(vPrefix)$(tableName)$(vJoinType)$(Lan2Name)"
+    Resident InnerDictionaries
+    where attributeOf like '$(tableName)'
+    and Reference like '$(vJoinType)';
+
+  next vJoinType;
+
+  drop table JoinTypes;
+
+END SUB
+
+// // Determination ISO3code for the short name of the country
+// Countries:
+// Mapping
+// LOAD
+//     countryShortName,
+//     threeLetterCode
+// FROM [$(DIC_QVD_PATH)Countries.qvd] (qvd);
+
+// SET vISO3code_set = "ApplyMap('Countries', $1, $2)";
+
+// Regions mapping
+Regions:
+Mapping
+Load * Inline [
+IN,	OUT
+1,	Брестская обл.
+2,	Витебская обл.
+3,	Гомельская обл.
+4,	Гродненская обл.
+5,	Могилевская обл.
+6,	Минская обл.
+7,	г. Минск
+];
+
+SET vRegionBY_set = "ApplyMap('Regions', $1)";
+
+/* 1. Transactions */
+
+PlanReleases:
+LOAD 
+	IDPlanReleaseOCIDOrig,
+	plan_release_date,
+	plan_releases_tag_list,
+	IDPlanReleaseOCIDKey
+FROM [$(TRN_QVD_PATH)PlanReleases.qvd] (qvd);
+
+Plannings:
+LOAD 
+	planning_id,
+	planning_planNumber,
+	planning_budgetYear,
+	planning_dateTimeCreated,
+	planning_dateCreated,
+	planning_dateTime,
+	planning_date,
+//	IDPlanReleaseOCIDOrig,
+	IDPlanningKey,
+	IDPlanReleaseOCIDKey
+FROM [$(TRN_QVD_PATH)Plannings.qvd] (qvd);
+
+Planning_items_:
+LOAD 
+	planning_items_id,
+	planning_items_quantity,
+	planning_items_description,
+	planning_items_planItemNumber,
+	planning_items_classification_id AS planning_items_OKRB_code,
+	planning_items_classification_description,
+	planning_items_classification_scheme,
+	planning_items_unit_id,
+	planning_items_unit_name,
+	planning_items_unit_scheme,
+	planning_items_value_amount,
+	planning_items_value_currency,
+//	planning_id,
+//	IDPlanReleaseOCIDOrig,
+	IDPlanningKey
+FROM [$(TRN_QVD_PATH)Planning_items.qvd] (qvd);
+
+Plan_failed_rules:
+LOAD 
+	failed_rules_id,
+	failed_rules_description,
+	failed_rules_operation,
+	failed_rules_condition,
+	failed_rules_kind,
+	failed_rules_needJsonPathResults,
+	failed_rules_set,
+	failed_rules_jsonPathResults,
+	failed_rules_operands_path,
+	failed_rules_operands_values,
+//	IDPlanReleaseOCIDOrig,
+	IDPlanReleaseOCIDKey
+FROM [$(TRN_QVD_PATH)Plan_failed_rules.qvd] (qvd);
+
+Plan_parties:
+LOAD 
+	IDParty,
+	parties_name,
+	parties_role,
+	parties_department AS parties_establishment_id,
+	parties_branch,
+	parties_branchDivision,
+	parties_export,
+	parties_organisationType,
+	parties_organisationForm,
+	parties_organisationStatus,
+	parties_budgetType,
+	parties_isFilial,
+	parties_scale,
+	parties_id,
+	parties_legalName,
+	parties_scheme,
+	parties_additionalIdentifier_id,
+	parties_additionalIdentifier_scheme,
+	parties_additionalIdentifier_legalName,
+	parties_countryName,
+	parties_locality,
+	parties_postalCode,
+    $(vRegionBY_set(parties_region)) as parties_region,
+	parties_streetAddress,
+	parties_contactPoint_email,
+	parties_contactPoint_faxNumber,
+	parties_contactPoint_name,
+	parties_contactPoint_telephone,
+	parties_contactPoint_url,
+	parties_latestRelease_date,
+//	IDPlanReleaseOCIDOrig,
+	IDPlanReleaseOCIDKey
+FROM [$(TRN_QVD_PATH)Plan_parties.qvd] (qvd);
+
+/* 2. Currency */
+
+LEFT JOIN (Planning_items_)
+LOAD 
+	planning_dateCreated,
+	IDPlanningKey
+RESIDENT Plannings;
+
+LEFT JOIN (Planning_items_)
+LOAD 
+	 CurrencyRate_date as planning_dateCreated, 
+     CurrencyRate, 
+     CurrencyRate_code as planning_items_value_currency
+FROM [$(DIC_QVD_PATH)CurrencyRates.qvd] (qvd);
+
+Planning_items:
+LOAD 
+	planning_items_id,
+	planning_items_quantity,
+	planning_items_description,
+	planning_items_planItemNumber,
+	planning_items_OKRB_code,
+	planning_items_classification_description,
+	planning_items_classification_scheme,
+	planning_items_unit_id,
+	planning_items_unit_name,
+	planning_items_unit_scheme,
+	planning_items_value_amount,
+    if(planning_items_value_currency <> '$(vLocalVal)', $(vRound2(planning_items_value_amount*CurrencyRate)), planning_items_value_amount) AS planning_items_value_amount_byr,
+	planning_items_value_currency,
+//	planning_id,
+//	IDPlanReleaseOCIDOrig,
+	IDPlanningKey
+RESIDENT Planning_items_;
+
+DROP TABLE Planning_items_;
+
+/* 3. Dictionary */
+
+Plan_parties_SME:
+LOAD
+    SME_code AS parties_scale,
+    SME as parties_SME,
+    SME_internationalClassificator AS parties_SME_internationalClassificator
+FROM [$(DIC_QVD_PATH)SME.qvd] (qvd);
+
+SET OTHERSYMBOL = ¶;
+
+Concatenate (Plan_parties_SME)
+Load * Inline [
+parties_scale,     parties_SME,     			parties_SME_internationalClassificator
+¶,			  Не определено,	Не определено
+];
+
+Planning_items_OKRB:
+LOAD 
+	 OKRB_code, 
+     OKRB,
+     OKRB_ParentCode
+FROM [$(DIC_QVD_PATH)OKRB.qvd] (qvd);
+
+CALL RHierarchy('Planning_items', 'Planning_items_OKRB', 'OKRB_code', 'OKRB_ParentCode', 'OKRB', 'planning_items_');
+
+Concatenate (Planning_items_OKRBHierarchy)
+Load * Inline [
+planning_items_OKRB_code, planning_items_OKRB, planning_items_OKRB1, planning_items_OKRB2, planning_items_OKRB3, planning_items_OKRB4, planning_items_OKRB5
+¶,						Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data,		   Incorrect data
+];
+
+DROP Table Planning_items_OKRB;
+
+Plan_parties_Establishments:
+LOAD establishment_id, 
+     establishment, 
+     establishment_parentId
+FROM [$(DIC_QVD_PATH)Establishments.qvd] (qvd)
+Where establishment_id <> 300;
+
+CALL RHierarchy('Plan_parties', 'Plan_parties_Establishments', 'establishment_id', 'establishment_parentId', 'establishment', 'parties_');
+
+DROP Table Plan_parties_Establishments;
+
+/* 4. For KPI */
+
+// ID - Customer Name
+LEFT JOIN (Plan_parties)
+LOAD DISTINCT
+	 IDParty,
+     parties_name&'-'&IDParty as parties_idname,
+     if(Match(parties_scale, 'mini', 'micro', 'medium'), DUAL('$(vYESText)',1), DUAL('$(vNOText)',0)) as parties_smallScale
+RESIDENT Plan_parties;
+
+// Plan changes
+LEFT JOIN (Plannings)
+LOAD DISTINCT
+	 IDPlanningKey,
+     if(not (planning_date = '$(vBeginDate)' or isnull(planning_date)),DUAL('$(vYESText)',1),DUAL('$(vNOText)',0)) AS planning_IsChanged
+RESIDENT Plannings;
+
+/* 5. Variables */
+
+//====Fields====
+SET vPlanId	= 'planning_id';
+SET vPlanYear = '[Бюджетный год]'; //planning_budgetYear
+SET vPlanNumber = '[Номер плана закупки]'; //planning_planNumber
+SET vDatePublished = '[Дата публикации]'; //planning_dateCreated
+SET vDateEdited = '[Дата последнего редактирования]'; //planning_date
+SET vPlanIsChanged = '[Наличие изменений]'; //planning_IsChanged
+SET vPlanItemId = 'planning_items_id';
+SET vPlanItemDescription = '[Наименование предмета закупки]'; //planning_items_description
+SET vPlanItemNumber = '[Номер пункта плана]'; //planning_items_planItemNumber
+SET vPlanItemValue = 'planning_items_value_amount';
+SET vPlanItemValueBYR = '[Планируемая сумма позиции, BYN]'; //planning_items_value_amount_byr
+SET vPlanItemOKRB = '[Код ОКРБ позиции плана]'; //planning_items_OKRB
+SET vPlanItemQuantity = '[Количество единиц]'; //planning_items_quantity
+SET vPlanItemUnitName = '[Единицы измерения]'; //planning_items_unit_name
+SET vBuyerId = '[ИНН заказчика]'; //IDParty
+SET vBuyerScale = '[Размер организации заказчика]'; //parties_scale
+SET vBuyerSME = '[Размер организации заказчика]'; //parties_SME
+SET vBuyerRegion = '[Регион заказчика]'; //parties_region
+SET vBuyerName = '[Наименование заказчика]'; //parties_name
+SET vBuyerDepartment = '[Ведомство заказчика]'; //parties_establishment
+SET vBuyerCity = '[Населенный пункт заказчика]'; //parties_locality
+SET vBuyerAddress = '[Адрес заказчика]'; //parties_streetAddress
+SET vBuyerContactPersonName = '[Контактное лицо]'; //parties_contactPoint_name
+SET vBuyerPhone = '[Контактный телефон]'; //parties_contactPoint_telephone
+SET vBuyeremail = '[Эл. почта]'; //parties_contactPoint_email
+SET vBuyerIdName = '[Заказчик]'; //parties_idname
+SET vSmallScaleBuyer = '[Заказчик является субъектом МСП]'; //parties_smallScale
+
+
+//====Sighns====
+
+
+//====KPIs====
+SET PARAMS = (=replace('$1', ';', ',')); 
+
+SET _PLANS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vPlanId)'&')';
+LET vPlansCount = $(_PLANS_COUNT_);
+
+SET _PLAN_ITEM_VALUE_ = 'SUM({<$'&PARAMS&'>} $(vPlanItemValueBYR)'&')'; 
+LET vPlanItemAmount = $(_PLAN_ITEM_VALUE_);
+
+SET _PLAN_ITEMS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vPlanItemId)'&')';
+LET vPlanItemsCount = $(_PLAN_ITEMS_COUNT_);
+
+SET _BUYERS_COUNT_ = 'COUNT({<$'&PARAMS&'>} Distinct $(vBuyerId)'&')';
+LET vBuyersCount = $(_BUYERS_COUNT_);
+
+/* 6. Multilang */
+
+//====Field names of multilingual dictionary
+FieldNamesTable:
+NoConcatenate
+LOAD
+    "Index",
+    Reference,
+    Ru,
+    En
+FROM [$(DIC_QVD_PATH)Multilang_FieldNames.qvd] (qvd);
+
+// Names and labels for internal KPI tables and dimensions
+InnerDictionaries:
+LOAD
+    "Index",
+    Reference,
+    Ru,
+    En,
+    attributeOf
+FROM [$(DIC_QVD_PATH)Multilang_Dictionaries.qvd] (qvd);
+
+// List of multilingual interface labels
+Translations:
+NoConcatenate
+Load     
+	"Index",
+    Reference,
+    Ru,
+    En
+From [$(DIC_QVD_PATH)Multilang_Labels.qvd] (qvd);
+
+Language:
+CROSSTABLE (Language, Translation) LOAD 
+	 Index, 
+     Ru,
+     En
+RESIDENT Translations;
+
+LanguageList:
+LOAD Distinct
+	 Language as _Language
+RESIDENT Language
+WHERE Language > 0;
+
+Left join(LanguageList)
+LOAD
+    Index as [_Language],
+    Ru as [Index_]
+Resident InnerDictionaries
+Where attributeOf like 'LanguageList';
+
+DROP TABLE Translations;
+
+// Variables for interface localization
+LET T = replace('_T_$1_@(=FirstSortedValue(distinct _Language, Index_))', '@', '$');
+
+LET vTranslationsRows = NoOfRows('Language');
+
+FOR i = 0 TO vTranslationsRows - 1 
+	LET _vTranslationId = Peek('Index', i, 'Language');
+	LET _vTranslation = Peek('Translation', i, 'Language');
+	LET _vTrLanguage = Peek('Language', i, 'Language');
+	
+	LET _vTrName = '_T_$(_vTranslationId)_$(_vTrLanguage)';
+	LET $(_vTrName) = '$(_vTranslation)';
+	
+	LET _vTranslationId =;
+	LET _vTranslation =;
+	LET _vTrLanguage =;
+	LET _vTrName =;
+NEXT
+
+DROP Table Language;
+
+// Variables for localizing sheet descriptions
+Translations:
+Load 
+	 "Index",
+     Ru,
+     En
+From [$(DIC_QVD_PATH)TranslationsHelp.qvd] (qvd);
+
+Language:
+CROSSTABLE (Language, Translation) LOAD 
+	 Index, 
+     Ru,
+     En
+RESIDENT Translations;
+
+// Help Localization Variables
+LET H = replace('_H_$1_@(=FirstSortedValue(_Language, Index_))', '@', '$');
+
+LET vTranslationsRows = NoOfRows('Language');
+
+FOR i = 0 TO vTranslationsRows - 1 
+	LET _vTranslationId = Peek('Index', i, 'Language');
+	LET _vTranslation = Peek('Translation', i, 'Language');
+	LET _vTrLanguage = Peek('Language', i, 'Language');
+	
+	LET _vTrName = '_H_$(_vTranslationId)_$(_vTrLanguage)';
+	LET $(_vTrName) = '$(_vTranslation)';
+	
+	LET _vTranslationId =;
+	LET _vTranslation =;
+	LET _vTrLanguage =;
+	LET _vTrName =;
+NEXT
+
+DROP Tables Translations;
+
+/* 7. Calendars */
+
+// Date Periods for Plans
+MinMaxDates:
+LOAD 
+	Min(plan_dateTmp) as MinDate,
+	Max(plan_dateTmp) as MaxDate;	
+
+LOAD Num(Fieldvalue('planning_dateCreated',RecNo())) as plan_dateTmp 
+AUTOGENERATE FieldValueCount('planning_dateCreated'); 
+
+LET vMinDate = Date(Peek('MinDate', -1, 'MinMaxDates'));
+LET vMaxDate = Date(Peek('MaxDate', -1, 'MinMaxDates'));
+
+DROP TABLE MinMaxDates;
+
+SET MonthNames='$(_T_63_Ru)';
+
+FullCalendar:
+Load
+	 "planning_dateCreated",
+     "planning_dateCreated" as Date,
+     Year(planning_dateCreated) as Year,
+     Dual(Year(planning_dateCreated)&'-K'&Num(Ceil(Num(Month(planning_dateCreated))/3)),QuarterStart(planning_dateCreated)) AS [Year-QuarterRu],
+     Dual(Year(planning_dateCreated)&'-'&Month(planning_dateCreated), (Year(planning_dateCreated)-1) * 12 + Month(planning_dateCreated)) as [Year-MonthRu],
+     Month(planning_dateCreated) as [MonthRu]
+;
+LOAD Date('$(vMinDate)' + RecNo() - 1) as "planning_dateCreated"
+AutoGenerate vMaxDate - vMinDate + 1;    
+
+SET MonthNames='$(_T_63_En)';
+
+Left Join (FullCalendar)
+Load
+	 Date,
+     Dual(Year(planning_dateCreated)&'-Q'&Num(Ceil(Num(Month(planning_dateCreated))/3)),QuarterStart(planning_dateCreated)) AS [Year-QuarterEn],
+     Dual(Year(planning_dateCreated)&'-'&Month(planning_dateCreated), (Year(planning_dateCreated)-1) * 12 + Month(planning_dateCreated)) as [Year-MonthEn],
+     Month(planning_dateCreated) as [MonthEn]
+Resident FullCalendar;   
+
+/* 8. Translate */
+
+FieldsTranslateTable:
+Mapping
+LOAD
+    F1,
+	F2
+FROM [$(DIC_QVD_PATH)FieldsTranslateTable.qvd] (qvd);
+
+rename fields using 'FieldsTranslateTable';
+
+/* 9. Interface/Trans Tables */
+
+// Plans
+KPIPLAN:
+Load 
+	 _KPINoPLAN, 
+     replace(_ExpPLAN, '@', '$') as _ExpPLAN
+;
+Load * Inline [
+_KPINoPLAN| 	_ExpPLAN
+1|			@(vPlansCount)
+2|			@(vPlanItemAmount)
+3|			@(vPlanItemsCount)
+](delimiter is '|');
+
+// For constructor
+KDIMPLAN:
+Load * Inline [
+_DIMPLAN
+1
+2
+3
+4
+5
+6
+7
+8
+9
+A
+B
+];
+
+KMESPLAN:
+Load * Inline [
+_MESPLAN
+1
+2
+3
+4
+];
+
+// Adding fields with KPI labels
+CALL translationsJoinInners('KPIPLAN', '_KPINoPLAN'); //PLAN = Planning
+
+CALL translationsNewTable('SmallScaleBuyer', 0, '$(vSmallScaleBuyer)');
+CALL translationsNewTable('PlanErrorType', 0, 'error_type');
+
+CALL translationsJoinInners('KDIMPLAN', '_DIMPLAN');
+CALL translationsJoinInners('KMESPLAN', '_MESPLAN');
+
+//Finalize
+Drop tables FieldNamesTable, InnerDictionaries;
+
+SET NumConvertRu = "Pick(ceil(RangeSum(Floor(LOG10($1)),1)/3), NUM($1, '# ##0'), NUM($1/1000, '# ##0,00 $(_T_56_Ru)', ',', ' '), NUM($1/1000000, '# ##0,00 $(_T_57_Ru)', ',', ' '), NUM($1/1000000000, '# ##0,00 $(_T_58_Ru)', ',', ' '), NUM($1/1000000000000, '# ##0,00 $(_T_59_Ru)', ',', ' '))";
+SET NumConvertEn = "Pick(ceil(RangeSum(Floor(LOG10($1)),1)/3), NUM($1, '# ##0'), NUM($1/1000, '# ##0,00$(_T_56_En)', ',', ' '), NUM($1/1000000, '# ##0,00$(_T_57_En)', ',', ' '), NUM($1/1000000000, '# ##0,00$(_T_58_En)', ',', ' '), NUM($1/1000000000000, '# ##0,00$(_T_59_En)', ',', ' '))";
+
+/* 10. Validator */
+
+PlanError_tmp:
+LOAD * Inline [
+IDPlanReleaseOCIDKey_, Quality_, error_type
+];
+
+// Date of publication of the plan until 2013-01-01
+concatenate (PlanError_tmp)
+load distinct IDPlanReleaseOCIDKey as IDPlanReleaseOCIDKey_,
+	0 AS Quality_,
+    'planning.dateCreated < "2013-01-01"' as error_type
+resident Plannings
+where planning_dateTimeCreated < '$(vFirstDate)' or isnull(planning_dateTimeCreated);
+
+// using internal validator
+concatenate (PlanError_tmp)
+load distinct IDPlanReleaseOCIDKey as IDPlanReleaseOCIDKey_,
+	0 AS Quality_,
+    failed_rules_id as error_type
+resident Plan_failed_rules
+WHERE match(failed_rules_id,
+			'required.$.planning.items',
+            'type.$.planning.items[*].value.amount'
+            )
+;
+
+//GOODPLANS
+Plan_tmp:
+noconcatenate
+load IDPlanReleaseOCIDKey,
+	1 AS Quality_
+resident PlanReleases;
+
+
+concatenate (PlanError_tmp)
+load IDPlanReleaseOCIDKey as IDPlanReleaseOCIDKey_,
+	Quality_
+resident Plan_tmp
+Where not Exists(IDPlanReleaseOCIDKey_, IDPlanReleaseOCIDKey);
+
+drop table Plan_tmp;
+
+PlanQuality:
+NoConcatenate
+load IDPlanReleaseOCIDKey_ as IDPlanReleaseOCIDKey,
+	IF(Quality_ = 1,DUAL('$(vYESText)',1),DUAL('$(vNOText)',0)) as [Valid Plans], //[Quality_] as [Quality], 
+    error_type
+resident PlanError_tmp;
+
+drop table PlanError_tmp;
+
+EXIT SCRIPT;
