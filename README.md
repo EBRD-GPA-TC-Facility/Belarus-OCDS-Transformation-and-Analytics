@@ -18,10 +18,13 @@ Data is extracted from the existing public procurement platforms, which continue
 * 2. Projects should be designed in several phases, giving time for the government to make changes on the basis of the initial business intelligence tools developed; 3. To ensure take-up and proper use of the developed tools, a budget for training and outreach should be included. 
 
 ### Impact: 
-Enables public procurement policy makers to take data-driven decisions; Provides for the automated generation of public procurement reports; Ensures transparency of public spending.
+
+* Enables public procurement policy makers to take data-driven decisions; 
+* Provides for the automated generation of public procurement reports; Ensures transparency of public spending.
 
 ### Human resources: 
 Project implemented by EBRD and 3 IT/consulting contractors, providing expertise in business intelligence software, web applications, and data analysis.	
+
 ### Risks: 
 Gaining adequate access to public procurement data and systems required for the project, together with the expertise to understand these systems. Potential for political blocks to the project.
 
