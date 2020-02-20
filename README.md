@@ -17,8 +17,6 @@ Data is extracted from the existing public procurement platforms, which continue
 * 1. The underlying quality of the data is a key determinant of success  – impacting the costs of the data transformation and the accuracy of the public procurement statistics generated; 
 * 2. Projects should be designed in several phases, giving time for the government to make changes on the basis of the initial business intelligence tools developed; 3. To ensure take-up and proper use of the developed tools, a budget for training and outreach should be included. 
 
-### Cost: 
-€200 000 – 250 000 (main factor impacting cost of equivalent projects is the quality of the underlying data)	
 ### Impact: 
 Enables public procurement policy makers to take data-driven decisions; Provides for the automated generation of public procurement reports; Ensures transparency of public spending.
 
