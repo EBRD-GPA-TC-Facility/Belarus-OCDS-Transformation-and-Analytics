@@ -74,10 +74,10 @@ The developed solution extracts data from the existing eProcurement systems and 
 
 The data drawn upon is extracted in the following ways:
 
-1) Directly from the eProcurement system of the National Centre of Marketing
-2) Data from the eProcurement system of the Belarus Universal Commodity Exchange is sent for publication to the Publication centre for procurement data of the National Centre of Marketing. The data is extracted from the publication centre. 
+* Directly from the eProcurement system of the National Centre of Marketing
+* Data from the eProcurement system of the Belarus Universal Commodity Exchange is sent for publication to the Publication centre for procurement data of the National Centre of Marketing. The data is extracted from the publication centre. 
 Direct extraction from the Belarus Universal Commodity Exchange eProcurement system would have been preferable, however the project team was not granted direct access to this data.
-3) Middleware is used to extract this data, convert it to the OCDS and store it in a consolidated database. 
+* Middleware is used to extract this data, convert it to the OCDS and store it in a consolidated database. 
 
 The process of developing this data extraction and transformation system has a number of steps. First, there is a systems exploration stage. During this stage, the project team describes the processes by which the eProcurement systems operate, it conducts a technical analysis of these business processes and models them using business process modelling notation (bpmn). 
 
