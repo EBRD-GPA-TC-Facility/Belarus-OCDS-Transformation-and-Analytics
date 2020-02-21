@@ -14,8 +14,8 @@ Belarus had several digital public procurement platforms, however the informatio
 Data is extracted from the existing public procurement platforms, which continue to operate, and transformed to the Open Contracting Data Standard (OCDS). This data is consolidated in a single database, and a business intelligence module is run on top of it, accessing the data via an Application Programme Interface (API). This provides government procurement policy makers with a tool to analyse and visualise procurement trends. The data is also made accessible via an open data portal, ensuring transparency of public spending. 
 
 ### Lessons learnt:
-1. The underlying quality of the data is a key determinant of success  – impacting the costs of the data transformation and the accuracy of the public procurement statistics generated; 
-2. Projects should be designed in several phases, giving time for the government to make changes on the basis of the initial business intelligence tools developed; 3. To ensure take-up and proper use of the developed tools, a budget for training and outreach should be included. 
+* The underlying quality of the data is a key determinant of success  – impacting the costs of the data transformation and the accuracy of the public procurement statistics generated; 
+* Projects should be designed in several phases, giving time for the government to make changes on the basis of the initial business intelligence tools developed; 3. To ensure take-up and proper use of the developed tools, a budget for training and outreach should be included. 
 
 ### Impact: 
 
